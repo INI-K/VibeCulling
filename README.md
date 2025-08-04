@@ -13,7 +13,7 @@
 *   This is not a tool that works with ratings or flags.
 *   It does not edit your images. It does not delete them. It does not edit EXIF data. It only moves them to the folders you specify.
 *   Honestly, it's not super fast. This is particularly true when decoding RAW files to view them (which is why I recommend using the embedded preview images in RAW files). I've tried my best to make it as fast as possible, but this is the limit of my coding skills.
-*   **This is not malware.** While this application is not code-signed (I haven't paid Microsoft or Apple for a developer certificate), it's completely safe to use. Windows or macOS might flag it as an untrusted app, but the entire source code is available on GitHub for review. You can also check the VirusTotal scan result for verification: https://www.virustotal.com/gui/file/d149c263397b7b323c6a194a333e6d104f03dfb2932159f70f8b538ba19e3dab?nocache=1
+*   **This is not malware.** While this application is not code-signed (I haven't paid Microsoft or Apple for a developer certificate), it's completely safe to use. Windows or macOS might flag it as an untrusted app, but the entire source code is available on GitHub for review. You can also check the VirusTotal scan result for verification: https://www.virustotal.com/gui/file/aa34c708b58d1b5f0d7662fe8f73db3de01a40a2cf816831fcd74dfff50396b7?nocache=1
 
 ## Why I made this
 *   I'm a completely amateur dad photographer. I enjoy taking pictures, and I enjoy editing the good ones. But culling? It's tedious and boring. I've even found myself hesitating to press the shutter or avoiding burst mode just to escape the burden of culling later.
