@@ -15573,6 +15573,34 @@ class VibeCullingApp(QMainWindow):
             logging.error(f"_apply_panel_position 오류: {e}", exc_info=True)
             self._is_reorganizing_layout = False # 오류 발생 시 플래그 해제
 
+def get_app_data_dir():
+    """
+    플랫폼에 맞는 애플리케이션 데이터 디렉토리 경로를 반환하고,
+    해당 디렉토리가 없으면 생성합니다.
+
+    - Windows: C:\\Users\\<Username>\\AppData\\Roaming\\VibeCulling
+    - macOS:   ~/Library/Application Support/VibeCulling
+    - Linux:   ~/.config/VibeCulling
+    """
+    app_name = "VibeCulling"
+    home = Path.home()
+
+    if sys.platform == "win32":
+        app_data_path = home / "AppData" / "Roaming" / app_name
+    elif sys.platform == "darwin":
+        app_data_path = home / "Library" / "Application Support" / app_name
+    else:
+        # Linux 및 기타 Unix 계열
+        app_data_path = home / ".config" / app_name
+
+    # 디렉토리가 존재하지 않으면 생성합니다.
+    # parents=True: 중간 경로가 없어도 생성
+    # exist_ok=True: 이미 존재해도 오류 발생 안 함
+    app_data_path.mkdir(parents=True, exist_ok=True)
+    
+    return app_data_path
+
+
 def main():
     # PyInstaller로 패키징된 실행 파일을 위한 멀티프로세싱 지원 추가
     freeze_support()
@@ -15588,14 +15616,14 @@ def main():
     lock_file_handle = None
 
     try:
-        # 실행 파일과 동일한 위치에 잠금 파일 경로 설정
-        if getattr(sys, 'frozen', False):
-            app_dir = Path(sys.executable).parent
-        else:
-            app_dir = Path(__file__).parent
-        
-        lock_file_path = app_dir / "vibeculling.lock"
+        # 1. 플랫폼에 맞는 안전한 앱 데이터 디렉토리 경로 가져오기
+        app_data_dir = get_app_data_dir()
 
+        # 2. 잠금 파일 경로 설정
+        lock_file_path = app_data_dir / "vibeculling.lock"
+        logging.info(f"잠금 파일 위치: {lock_file_path}")
+
+        # 3. 플랫폼별 잠금 로직 (이 부분은 기존과 동일)
         if sys.platform == 'win32':
             # Windows: msvcrt 사용
             import msvcrt
@@ -15607,18 +15635,16 @@ def main():
             lock_file_handle = open(str(lock_file_path), 'w')
             fcntl.flock(lock_file_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
-    except (IOError, ImportError):
+    except (IOError, ImportError) as e:
         # 다른 인스턴스가 이미 잠금을 설정했거나 라이브러리 로드 실패
-        print("VibeCulling이 이미 실행 중이거나 잠금 파일을 생성할 수 없습니다.")
+        logging.warning(f"앱이 이미 실행 중이거나 잠금을 획득할 수 없습니다: {e}")
         try:
-            # 함수 내에서 QApplication을 다시 import하지 않습니다.
-            # 전역으로 import된 것을 그대로 사용합니다.
             temp_app = QApplication.instance() or QApplication(sys.argv)
             QMessageBox.warning(None, "VibeCulling", "VibeCulling is already running.")
-        except:
-            pass
+        except Exception as msg_e:
+            logging.error(f"중복 실행 경고창 표시 실패: {msg_e}")
         sys.exit(1)
-    # 크로스플랫폼 단일 인스턴스 체크 끝
+        # 크로스플랫폼 단일 인스턴스 체크 끝
 
     # 로그 레벨 설정 (이후 코드는 기존과 동일)
     is_dev_mode = getattr(sys, 'frozen', False) is False
