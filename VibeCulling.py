@@ -4029,6 +4029,87 @@ class FolderLoaderWorker(QObject):
             logging.error(f"백그라운드 폴더 로딩 중 오류: {e}")
             self.error.emit(str(e), LanguageManager.translate("오류"))
 
+class CopyWorker(QObject):
+    """백그라운드 스레드에서 파일 복사를 순차적으로 처리하는 워커"""
+    copyFinished = Signal(str) # 복사 완료 시 메시지를 전달하는 신호
+
+    def __init__(self, copy_queue, parent_app):
+        super().__init__()
+        self.copy_queue = copy_queue
+        self.parent_app = parent_app # VibeCullingApp 인스턴스 참조
+        self._is_running = True
+
+    def stop(self):
+        self._is_running = False
+
+    def _copy_single_file(self, source_path, target_folder):
+        """파일을 대상 폴더로 복사하고, 이름 충돌 시 새 이름을 부여합니다."""
+        if not source_path or not target_folder:
+            return None
+        target_dir = Path(target_folder)
+        target_path = target_dir / source_path.name
+
+        if target_path.exists():
+            counter = 1
+            while True:
+                new_name = f"{source_path.stem}_{counter}{source_path.suffix}"
+                new_target_path = target_dir / new_name
+                if not new_target_path.exists():
+                    target_path = new_target_path
+                    break
+                counter += 1
+        
+        try:
+            shutil.copy2(str(source_path), str(target_path)) # copy2로 메타데이터 보존
+            logging.info(f"파일 복사: {source_path} -> {target_path}")
+            return target_path
+        except Exception as e:
+            logging.error(f"파일 복사 실패: {source_path} -> {target_path}, 오류: {e}")
+            return None
+
+    @Slot()
+    def process_queue(self):
+        """큐에 작업이 들어올 때까지 대기하고, 작업을 순차적으로 처리합니다."""
+        while self._is_running:
+            try:
+                # 1. 큐에서 작업을 먼저 하나의 변수로 받습니다.
+                task = self.copy_queue.get()
+
+                # 2. 받은 작업이 종료 신호(None)인지 확인합니다.
+                if task is None or not self._is_running:
+                    break # 종료 신호이거나 stop()이 호출되었으면 루프를 빠져나갑니다.
+
+                # 3. 유효한 작업일 경우에만 변수에 할당(unpack)합니다.
+                files_to_copy, target_folder, raw_files_dict, copy_raw_flag = task
+                
+                copied_count = 0
+                for jpg_path in files_to_copy:
+                    if self._copy_single_file(jpg_path, target_folder):
+                        copied_count += 1
+                        # RAW 파일 복사 로직
+                        if copy_raw_flag:
+                            base_name = jpg_path.stem
+                            if base_name in raw_files_dict:
+                                raw_path = raw_files_dict[base_name]
+                                self._copy_single_file(raw_path, target_folder)
+
+                # 작업 완료 후 피드백 메시지 생성 및 신호 발생
+                if copied_count > 0:
+                    if len(files_to_copy) == 1:
+                        filename = files_to_copy[0].name
+                        msg_key = "{filename} 복사 완료"
+                        message = LanguageManager.translate(msg_key).format(filename=filename)
+                    else:
+                        msg_key = "이미지 {count}개 복사 완료"
+                        message = LanguageManager.translate(msg_key).format(count=copied_count)
+                    
+                    self.copyFinished.emit(message)
+
+            except Exception as e:
+                logging.error(f"CopyWorker 처리 중 오류: {e}")
+
+
+
 class VibeCullingApp(QMainWindow):
     STATE_FILE = "vibeculling_data.json" # 상태 저장 파일 이름 정의
     
@@ -4054,12 +4135,24 @@ class VibeCullingApp(QMainWindow):
 
         ("group", "파일 작업"),
         ("key", "1 ~ 9", "지정한 폴더로 사진 이동"),
+        ("key", "Shift + 1 ~ 9", "지정한 폴더로 사진 복사"),
         ("key", "Ctrl + Z", "파일 이동 취소 (Undo)"),
         ("key", "Ctrl + Y / Ctrl + Shift + Z", "파일 이동 다시 실행 (Redo)"),
         ("key", "Ctrl + A", "페이지 전체 선택 (그리드 모드)"),
         ("key", "Delete", "작업 상태 초기화"),
     ]
 
+    KEY_MAP_SHIFT_NUMBER = {
+        Qt.Key_Exclam: Qt.Key_1,      # ! -> 1
+        Qt.Key_At: Qt.Key_2,          # @ -> 2
+        Qt.Key_NumberSign: Qt.Key_3,  # # -> 3
+        Qt.Key_Dollar: Qt.Key_4,      # $ -> 4
+        Qt.Key_Percent: Qt.Key_5,     # % -> 5
+        Qt.Key_AsciiCircum: Qt.Key_6, # ^ -> 6
+        Qt.Key_Ampersand: Qt.Key_7,   # & -> 7
+        Qt.Key_Asterisk: Qt.Key_8,    # * -> 8
+        Qt.Key_ParenLeft: Qt.Key_9,   # ( -> 9
+    }
 
     def __init__(self):
         super().__init__()
@@ -4069,6 +4162,9 @@ class VibeCullingApp(QMainWindow):
 
         # 크로스 플랫폼 윈도우 아이콘 설정
         self.set_window_icon()
+
+        self.copy_queue = queue.Queue() # 복사 작업을 위한 FIFO 큐
+        self._setup_copy_worker()       # 백그라운드 복사 워커 스레드 설정
         
         # 내부 변수 초기화
         self.current_folder = ""
@@ -4800,6 +4896,87 @@ class VibeCullingApp(QMainWindow):
         self.ui_refresh_timer = QTimer(self)
         self.ui_refresh_timer.setInterval(500)  # 0.5초 간격
         self.ui_refresh_timer.timeout.connect(self._periodic_ui_refresh)
+
+    def _setup_copy_worker(self):
+        """백그라운드 복사 작업을 위한 워커와 스레드를 설정합니다."""
+        self.copy_thread = QThread(self)
+        self.copy_worker = CopyWorker(self.copy_queue, self) # 부모 앱 참조 전달
+        self.copy_worker.moveToThread(self.copy_thread)
+
+        # 워커의 작업 완료 신호를 메인 스레드의 UI 업데이트 슬롯에 연결
+        self.copy_worker.copyFinished.connect(self.show_feedback_message)
+
+        # 스레드가 시작될 때 워커의 처리 루프를 시작하도록 연결
+        self.copy_thread.started.connect(self.copy_worker.process_queue)
+        
+        # 스레드 시작
+        self.copy_thread.start()
+
+    @Slot(str)
+    def show_feedback_message(self, message):
+        """캔버스 중앙에 피드백 메시지를 잠시 표시합니다."""
+        # 피드백 라벨이 없으면 생성
+        if not hasattr(self, 'feedback_label'):
+            self.feedback_label = QLabel(self.image_panel) # image_panel을 부모로 설정
+            self.feedback_label.setAlignment(Qt.AlignCenter)
+            self.feedback_label.setStyleSheet("""
+                QLabel {
+                    background-color: rgba(30, 30, 30, 0.7);
+                    color: #AAAAAA;
+                    font-size: 15pt;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                }
+            """)
+            self.feedback_label.hide()
+            
+            # 피드백 메시지를 숨기기 위한 타이머
+            self.feedback_timer = QTimer(self)
+            self.feedback_timer.setSingleShot(True)
+            self.feedback_timer.timeout.connect(self.feedback_label.hide)
+
+        self.feedback_label.setText(message)
+        self.feedback_label.adjustSize() # 텍스트 크기에 맞게 라벨 크기 조절
+
+        # image_panel 중앙에 위치
+        panel_rect = self.image_panel.rect()
+        label_size = self.feedback_label.size()
+        self.feedback_label.move(
+            (panel_rect.width() - label_size.width()) // 2,
+            (panel_rect.height() - label_size.height()) // 2
+        )
+
+        self.feedback_label.show()
+        self.feedback_label.raise_()
+        self.feedback_timer.start(500) # 0.5초 후에 숨김
+
+    def _trigger_copy_operation(self, folder_index):
+        """현재 선택된 이미지(들)에 대한 복사 작업을 큐에 추가합니다."""
+        if not self.image_files: return
+
+        target_folder = self.target_folders[folder_index]
+        if not target_folder or not os.path.isdir(target_folder):
+            return
+
+        files_to_copy = []
+        if self.grid_mode == "Off":
+            if 0 <= self.current_image_index < len(self.image_files):
+                files_to_copy.append(self.image_files[self.current_image_index])
+        else: # Grid 모드
+            if self.selected_grid_indices:
+                for grid_idx in self.selected_grid_indices:
+                    global_idx = self.grid_page_start_index + grid_idx
+                    if 0 <= global_idx < len(self.image_files):
+                        files_to_copy.append(self.image_files[global_idx])
+            elif 0 <= self.current_grid_index < len(self.image_files) - self.grid_page_start_index:
+                 global_idx = self.grid_page_start_index + self.current_grid_index
+                 files_to_copy.append(self.image_files[global_idx])
+
+        if files_to_copy:
+            # (복사할 파일 목록, 대상 폴더, RAW 파일 정보, RAW 복사 여부) 튜플을 큐에 추가
+            task = (files_to_copy, target_folder, self.raw_files, self.move_raw_files)
+            self.copy_queue.put(task)
+
 
     def on_loading_progress(self, message):
         """로딩 진행 상황을 로딩창에 업데이트합니다."""
@@ -8923,6 +9100,16 @@ class VibeCullingApp(QMainWindow):
             super().resizeEvent(event)
             self.adjust_layout()
             self.update_minimap_position()
+
+            if hasattr(self, 'feedback_label') and self.feedback_label.isVisible():
+                # self.image_panel이 유효한지 확인
+                if hasattr(self, 'image_panel') and self.image_panel:
+                    panel_rect = self.image_panel.rect()
+                    label_size = self.feedback_label.size()
+                    self.feedback_label.move(
+                        (panel_rect.width() - label_size.width()) // 2,
+                        (panel_rect.height() - label_size.height()) // 2
+                    )
             
             # 비교 모드 닫기 버튼 위치 업데이트
             if self.compare_mode_active and self.close_compare_button.isVisible():
@@ -14823,6 +15010,14 @@ class VibeCullingApp(QMainWindow):
         if not self._is_resetting:
             self.save_state()
 
+        if hasattr(self, 'copy_thread') and self.copy_thread.isRunning():
+            self.copy_worker.stop()
+            self.copy_queue.put(None) # 대기 중인 get()을 깨우기 위해 None 삽입
+            self.copy_thread.quit()
+            if not self.copy_thread.wait(1000): # 1초 대기
+                self.copy_thread.terminate()
+                logging.warning("복사 스레드를 강제 종료했습니다.")
+
         self._cleanup_resources()
         
         # 로그 핸들러 정리
@@ -14991,18 +15186,42 @@ class VibeCullingApp(QMainWindow):
                 return super().eventFilter(obj, event)
             key = event.key()
             modifiers = event.modifiers()
-            
+
             # (Q/E, 숫자키, Ctrl 단축키, 기능키 등은 변경 없음)
             if key in (Qt.Key_Q, Qt.Key_E):
                 if not event.isAutoRepeat() and key not in self.key_press_start_time:
                     self.key_press_start_time[key] = time.time()
                 return True
+            
+            base_number_key = None
+            
+            # 1. 눌린 키가 숫자키(1-9)인지 직접 확인
             if Qt.Key_1 <= key <= (Qt.Key_1 + self.folder_count - 1):
+                base_number_key = key
+            # 2. 또는 Shift+숫자 조합으로 나온 특수문자인지 확인
+            elif key in self.KEY_MAP_SHIFT_NUMBER:
+                mapped_key = self.KEY_MAP_SHIFT_NUMBER[key]
+                # 매핑된 키가 현재 설정된 폴더 개수 범위 내에 있는지 추가 확인
+                if Qt.Key_1 <= mapped_key <= (Qt.Key_1 + self.folder_count - 1):
+                    base_number_key = mapped_key
+
+            # 3. 유효한 숫자 키 입력이 감지된 경우
+            if base_number_key is not None:
                 if not event.isAutoRepeat():
-                    folder_index = key - Qt.Key_1
-                    self.highlight_folder_label(folder_index, True)
-                    self.pressed_number_keys.add(key)
-                return True
+                    folder_index = base_number_key - Qt.Key_1
+                    
+                    # 4. Shift 키가 눌렸는지 확인하여 복사/이동 분기
+                    if (modifiers & Qt.ShiftModifier) and not (modifiers & Qt.ControlModifier):
+                        # Shift + 숫자 = 복사
+                        self._trigger_copy_operation(folder_index)
+                    elif not (modifiers & Qt.ShiftModifier) and not (modifiers & Qt.ControlModifier):
+                        # 숫자만 = 이동 준비 (하이라이트)
+                        self.highlight_folder_label(folder_index, True)
+                        # 중요: pressed_number_keys에는 매핑된 기본 숫자 키를 저장해야 합니다.
+                        self.pressed_number_keys.add(base_number_key)
+                        
+                return True # 숫자 키 관련 이벤트는 여기서 모두 처리
+
             is_mac = sys.platform == 'darwin'
             ctrl_modifier = Qt.MetaModifier if is_mac else Qt.ControlModifier
             if modifiers == ctrl_modifier and key == Qt.Key_Z: self.undo_move(); return True
@@ -15921,6 +16140,9 @@ def main():
         "현재 작업을 종료하고 이미지 폴더를 닫으시겠습니까?": "Are you sure you want to end the current session and close the image folder?",
         "RAW 연결 해제": "Unlink RAW Files",
         "현재 JPG 폴더와의 RAW 파일 연결을 해제하시겠습니까?": "Are you sure you want to unlink the RAW files from the current JPG folder?",
+        "지정한 폴더로 사진 복사": "Copy photo to assigned folder",
+        "{filename} 복사 완료": "{filename} copied.",
+        "이미지 {count}개 복사 완료": "{count} images copied.",
     }
     
     LanguageManager.initialize_translations(translations)
