@@ -38,32 +38,32 @@
 
 ### 1. 사진 폴더 불러오기
 <div align="center">
-  <img src=".github/assets/1-folderload-ko.webp" alt="폴더 불러오기" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/1-folderload-ko.webp" alt="폴더 불러오기" style="width: 1000px; margin-bottom: 20px;">
 </div>
 
 ### 2. 분류 폴더 지정
 <div align="center">
-  <img src=".github/assets/2-sortfolder2-ko.webp" alt="정렬 폴더 설정" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/2-sortfolder2-ko.webp" alt="정렬 폴더 설정" style="width: 1000px; margin-bottom: 20px;">
 </div>
 
 ### 3. 한손 셀렉 예시 (왼손)
 <div align="center">
-  <img src=".github/assets/3-lefthand-ko.webp" alt="한 손 셀렉 예시 (왼손)" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/3-lefthand-ko.webp" alt="한 손 셀렉 예시 (왼손)" style="width: 1000px; margin-bottom: 20px;">
 </div>
 
 ### 4. 한손 셀렉 예시 (오른손)
 <div align="center">
-  <img src=".github/assets/4-righthand-ko.webp" alt="한 손 셀렉 예시 (오른손)" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/4-righthand-ko.webp" alt="한 손 셀렉 예시 (오른손)" style="width: 1000px; margin-bottom: 20px;">
 </div>
 
 ### 5. 확대 기능
 <div align="center">
-  <img src=".github/assets/5-zoom-ko.webp" alt="확대/축소 기능" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/5-zoom-ko.webp" alt="확대/축소 기능" style="width: 1000px; margin-bottom: 20px;">
 </div>
 
 ### 6. 비교 기능
 <div align="center">
-  <img src=".github/assets/6-compare-ko.webp" alt="비교 기능" style="max-width: 1000px; margin-bottom: 20px;">
+  <img src=".github/assets/6-compare-ko.webp" alt="비교 기능" style="width: 1000px; margin-bottom: 20px;">
 
 </div>
 
