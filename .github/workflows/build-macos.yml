@@ -37,6 +37,9 @@ jobs:
         rm -rf build
         rm -rf __pycache__
         rm -rf *.spec
+        # PySide6 특정 심볼릭 링크 충돌 방지
+        rm -rf /Users/runner/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6/Qt/lib/Qt3DAnimation.framework/Resources
+        rm -rf /Users/runner/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6
     
     - name: Build macOS app
       run: |
