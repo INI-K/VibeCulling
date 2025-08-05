@@ -3521,12 +3521,20 @@ class ThumbnailPanel(QWidget):
         self.preload_surrounding_thumbnails(index)
     
     def scroll_to_index(self, index):
-        """지정된 인덱스가 리스트 중앙에 오도록 스크롤"""
+        """지정된 인덱스가 리스트 중앙에 오도록 스크롤 (타이머로 지연 실행)"""
         if index < 0 or index >= self.model.rowCount():
             return
-            
-        model_index = self.model.createIndex(index, 0)
-        self.list_view.scrollTo(model_index, QListView.PositionAtCenter)
+        
+        # QTimer.singleShot을 사용하여 scrollTo를 이벤트 루프의 다음 사이클에서 실행합니다.
+        # 이렇게 하면 모델/뷰 업데이트가 완료된 후 스크롤이 실행되어 정확성이 높아집니다.
+        QTimer.singleShot(0, lambda: self._perform_scroll(index))
+
+    def _perform_scroll(self, index):
+        """실제 스크롤을 수행하는 내부 메서드"""
+        # 타이머 콜백 시점에 인덱스가 여전히 유효한지 다시 확인
+        if 0 <= index < self.model.rowCount():
+            model_index = self.model.createIndex(index, 0)
+            self.list_view.scrollTo(model_index, QListView.PositionAtCenter)
     
     def preload_surrounding_thumbnails(self, center_index, radius=5):
         """중심 인덱스 주변의 썸네일 미리 로딩"""
