@@ -140,6 +140,9 @@ cp version_info.py "${TEMP_BUILD_DIR}/" 2>/dev/null || true
 
 # 임시 디렉토리에서 빌드 실행
 cd "${TEMP_BUILD_DIR}"
+# 환경 변수로 spec 파일 생성 방지
+export PYINSTALLER_COMPILE_BOOTLOADER=0
+
 pyinstaller \
   --name "${APP_NAME}" \
   --windowed \
@@ -193,8 +196,19 @@ if [[ $? -ne 0 ]]; then
     sudo rm -rf dist build *.spec __pycache__ .pytest_cache 2>/dev/null || true
     sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
     sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
+    
+    # 임시 빌드 디렉토리 정리
+    sudo rm -rf /tmp/vibeculling_* 2>/dev/null || true
+    
+    # PySide6 관련 심볼릭 링크 특별 정리
+    sudo find . -path "*/PySide6/Qt/lib/*.framework/Resources" -type l -delete 2>/dev/null || true
+    sudo find . -path "*/PySide6/Qt/lib/*.framework/Versions/Current" -type l -delete 2>/dev/null || true
+    
     find . -type l -delete 2>/dev/null || true
     find . -name "*.pyc" -delete 2>/dev/null || true
+    
+    # PyInstaller 작업 디렉토리 강제 정리
+    sudo rm -rf /tmp/pyinstaller_* 2>/dev/null || true
     
     # 작업 디렉토리 새로 생성
     mkdir -p dist build
@@ -212,6 +226,10 @@ if [[ $? -ne 0 ]]; then
      
      # 임시 디렉토리에서 재시도 빌드 실행
       cd "${RETRY_TEMP_BUILD_DIR}"
+      
+      # 환경 변수로 spec 파일 생성 방지
+      export PYINSTALLER_COMPILE_BOOTLOADER=0
+      
       pyinstaller \
         --name "${APP_NAME}" \
         --windowed \
