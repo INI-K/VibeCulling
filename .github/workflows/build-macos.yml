@@ -36,19 +36,29 @@ jobs:
     - name: Clean previous build artifacts (강력한 정리)
       run: |
         # 모든 빌드 관련 파일 완전 삭제
-        sudo rm -rf dist build __pycache__ *.spec 2>/dev/null || true
-        # PySide6 관련 모든 캐시 정리
-        sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
-        sudo rm -rf /tmp/pip-* /tmp/_MEI* 2>/dev/null || true
-        # Python 캐시 파일 모두 삭제
-        find . -name "*.pyc" -delete 2>/dev/null || true
-        find . -name "__pycache__" -type d -exec sudo rm -rf {} + 2>/dev/null || true
-        # 기존 심볼릭 링크 강제 삭제
+        sudo rm -rf dist build __pycache__ .pytest_cache
+        
+        # 모든 캐시 완전 정리
+        sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller*
+        
+        # 임시 빌드 디렉토리 정리
+        sudo rm -rf /tmp/vibeculling_* 2>/dev/null || true
+        
+        # PySide6 관련 심볼릭 링크 특별 정리
+        sudo find . -path "*/PySide6/Qt/lib/*.framework/Resources" -type l -delete 2>/dev/null || true
+        sudo find . -path "*/PySide6/Qt/lib/*.framework/Versions/Current" -type l -delete 2>/dev/null || true
+        
+        # 모든 심볼릭 링크 완전 제거
         find . -type l -delete 2>/dev/null || true
-        # 작업 디렉토리 새로 생성
-        mkdir -p dist build
-        # spec 파일 강제 삭제 (매번 새로 생성하도록)
+        
+        # *.pyc 파일 완전 삭제
+        find . -name "*.pyc" -delete 2>/dev/null || true
+        
+        # VibeCulling.spec 파일 강제 삭제
         rm -f VibeCulling.spec 2>/dev/null || true
+        
+        # PyInstaller 작업 디렉토리 강제 정리
+        sudo rm -rf /tmp/pyinstaller_* 2>/dev/null || true
     
     - name: Build with PyInstaller (임시 디렉토리 사용)
       run: |
@@ -71,6 +81,11 @@ jobs:
         # 모든 캐시 완전 정리
         sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
         sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
+        # 임시 빌드 디렉토리 정리
+        sudo rm -rf /tmp/vibeculling_* 2>/dev/null || true
+        # PySide6 관련 심볼릭 링크 특별 정리
+        sudo find . -path "*/PySide6/Qt/lib/*.framework/Resources" -type l -delete 2>/dev/null || true
+        sudo find . -path "*/PySide6/Qt/lib/*.framework/Versions/Current" -type l -delete 2>/dev/null || true
         # 모든 심볼릭 링크 삭제
         find . -type l -delete 2>/dev/null || true
         find . -name "*.pyc" -delete 2>/dev/null || true
