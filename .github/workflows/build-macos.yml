@@ -49,6 +49,16 @@ jobs:
         chmod +x build_mac_app.sh
         ./build_mac_app.sh
     
+    - name: Retry build if failed (cleanup and retry)
+      if: failure()
+      run: |
+        echo "빌드 실패 - 추가 정리 후 재시도"
+        rm -rf dist build *.spec
+        find . -path "*/PySide6/Qt/lib/Qt3DAnimation.framework/Resources" -type l -delete 2>/dev/null || true
+        find . -path "*/PySide6/Qt/lib/*/Resources" -type l -delete 2>/dev/null || true
+        chmod +x build_mac_app.sh
+        ./build_mac_app.sh
+    
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
