@@ -31,7 +31,7 @@ if [[ ! -f "$VERSION_FILE" ]]; then
     log_error "버전 파일($VERSION_FILE)을 찾을 수 없습니다. 스크립트와 같은 위치에 version_info.txt 파일을 생성하고 버전을 입력해주세요."
     exit 1
 fi
-VERSION=$(grep "FileVersion" "$VERSION_FILE" | awk -F"'" '{print $4}') # FileVersion 라인에서 버전 정보 추출
+VERSION=$(grep "FileVersion" "$VERSION_FILE" | awk -F"'" '{print $2}') # FileVersion 라인에서 버전 정보 추출
 if [[ -z "$VERSION" ]]; then
     log_error "$VERSION_FILE 파일에서 버전 정보를 추출할 수 없습니다. 파일 형식을 확인해주세요."
     exit 1
