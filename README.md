@@ -39,32 +39,32 @@
 
 ### 1. Load Your Photo Folder
 <div align="center">
-  <img src=".github/assets/1-folderload.webp" alt="Loading folder" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/1-folderload.webp" alt="Loading folder" style="margin-bottom: 20px;">
 </div>
 
 ### 2. Assign Your Sorting Folders
 <div align="center">
-  <img src=".github/assets/2-sortfolder.webp" alt="Setting sort folders" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/2-sortfolder.webp" alt="Setting sort folders" style="margin-bottom: 20px;">
 </div>
 
 ### 3. Cull with Your Left Hand (Keyboard)
 <div align="center">
-  <img src=".github/assets/3-lefthand.webp" alt="One-hand culling example (left hand)" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/3-lefthand.webp" alt="One-hand culling example (left hand)" style="margin-bottom: 20px;">
 </div>
 
 ### 4. Cull with Your Right Hand (Mouse)
 <div align="center">
-  <img src=".github/assets/4-righthand.webp" alt="One-hand culling example (right hand)" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/4-righthand.webp" alt="One-hand culling example (right hand)" style="margin-bottom: 20px;">
 </div>
 
 ### 5. Zoom and Pan
 <div align="center">
-  <img src=".github/assets/5-zoom.webp" alt="Zoom feature" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/5-zoom.webp" alt="Zoom feature" style="margin-bottom: 20px;">
 </div>
 
 ### 6. Compare Similar Shots
 <div align="center">
-  <img src=".github/assets/6-compare.webp" alt="Compare feature" style="max-width: 100%; height: auto; margin-bottom: 20px;">
+  <img src=".github/assets/6-compare.webp" alt="Compare feature" style="margin-bottom: 20px;">
 </div>
 
 ---
