@@ -1,0 +1,16 @@
+# VibeCulling 버전 정보
+# build_mac_app.sh 스크립트에서 사용됩니다.
+
+# 파일 버전 정보
+FileVersion='25.08.05'
+ProductVersion='25.08.05'
+
+# 애플리케이션 정보
+AppName='VibeCulling'
+CompanyName='newboon'
+FileDescription='Photo Culling Application'
+LegalCopyright='Copyright © 2025 newboon'
+
+# 빌드 정보
+BuildDate=$(date '+%Y-%m-%d %H:%M:%S')
+BuildNumber='0'
