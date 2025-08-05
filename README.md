@@ -1,3 +1,5 @@
+[English](README.md) | [한국어](README.ko.md)
+
 # VibeCulling
 
 ![VibeCulling Screenshot](./.github/assets/vibeculling_main.png)
@@ -72,9 +74,10 @@
 You can download the latest version for Windows and macOS from the **[GitHub Releases page](https://github.com/newboon/VibeCulling/releases)**.
 
 -   **Windows:** Download the `VibeCulling_vX.X.X_win.zip` file.
--   **macOS:** Download the `VibeCulling_vX.X.X_macOS.dmg.zip` file.
 -   Extract the zip
 -   Run `VibeCulling.exe` (no installation needed)
+-   **macOS:** Download the `VibeCulling_vX.X.X_macOS.dmg.zip` file.
+
 
 ---
 
