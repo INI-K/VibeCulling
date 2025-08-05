@@ -127,8 +127,19 @@ EOF
 # PyInstaller 실행
 log_info "PyInstaller를 사용하여 VibeCulling 앱 빌드 중..."
 
-# spec 파일 완전 제거하고 Python 파일로 직접 빌드
-log_info "spec 파일 없이 Python 파일로 직접 빌드 시작..."
+# spec 파일 생성 완전 방지 - 임시 디렉토리에서 빌드
+log_info "임시 디렉토리에서 spec 파일 없이 빌드 시작..."
+
+# 임시 빌드 디렉토리 생성
+TEMP_BUILD_DIR="/tmp/vibeculling_build_$$"
+mkdir -p "${TEMP_BUILD_DIR}"
+cp VibeCulling.py "${TEMP_BUILD_DIR}/"
+cp -r resources "${TEMP_BUILD_DIR}/" 2>/dev/null || true
+cp app_icon.icns "${TEMP_BUILD_DIR}/" 2>/dev/null || true
+cp version_info.py "${TEMP_BUILD_DIR}/" 2>/dev/null || true
+
+# 임시 디렉토리에서 빌드 실행
+cd "${TEMP_BUILD_DIR}"
 pyinstaller \
   --name "${APP_NAME}" \
   --windowed \
@@ -137,8 +148,9 @@ pyinstaller \
   --noconfirm \
   --noupx \
   --log-level=INFO \
-  --distpath ./dist \
-  --workpath ./build \
+  --distpath "${OLDPWD}/dist" \
+  --workpath "${OLDPWD}/build" \
+  --specpath "${TEMP_BUILD_DIR}" \
   --icon app_icon.icns \
   --add-data "app_icon.icns:." \
   --add-data "resources:resources" \
@@ -164,7 +176,13 @@ pyinstaller \
   --exclude-module unittest \
   VibeCulling.py
 
-# spec 파일이 생성되었다면 즉시 삭제
+# 원래 디렉토리로 돌아가기
+cd "${OLDPWD}"
+
+# 임시 디렉토리 정리
+rm -rf "${TEMP_BUILD_DIR}" 2>/dev/null || true
+
+# 혹시 생성된 spec 파일 삭제
 rm -f VibeCulling.spec 2>/dev/null || true
 
 if [[ $? -ne 0 ]]; then
@@ -181,45 +199,63 @@ if [[ $? -ne 0 ]]; then
     # 작업 디렉토리 새로 생성
     mkdir -p dist build
     
-    # 재시도 (spec 파일 완전 제거하고 Python 파일로 직접 빌드)
-     log_info "PyInstaller 재시도 중 (spec 파일 완전 제거)..."
-     pyinstaller \
-       --name "${APP_NAME}" \
-       --windowed \
-       --clean \
-       --onedir \
-       --noconfirm \
-       --noupx \
-       --log-level=INFO \
-       --distpath ./dist \
-       --workpath ./build \
-      --icon app_icon.icns \
-      --add-data "app_icon.icns:." \
-      --add-data "resources:resources" \
-      --add-data "version_info.py:." \
-      --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
-      --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
-      --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
-      --add-binary "${EXIFTOOL_BIN}:." \
-      --add-binary "${LIBRAW_DYLIB}:." \
-      --collect-all PySide6 \
-      --collect-all PIL \
-      --collect-all pillow \
-      --collect-all pillow_heif \
-      --hidden-import=PIL \
-      --hidden-import=PIL.Image \
-      --hidden-import=PIL.ExifTags \
-      --hidden-import=exifread \
-      --hidden-import=rawpy \
-      --exclude-module tkinter \
-      --exclude-module matplotlib \
-      --exclude-module numpy.testing \
-      --exclude-module test \
-      --exclude-module unittest \
-      VibeCulling.py
-    
-    # spec 파일이 생성되었다면 즉시 삭제
-    rm -f VibeCulling.spec 2>/dev/null || true
+    # 재시도 (임시 디렉토리에서 spec 파일 생성 방지)
+     log_info "PyInstaller 재시도 중 (임시 디렉토리 사용)..."
+     
+     # 재시도용 임시 빌드 디렉토리 생성
+     RETRY_TEMP_BUILD_DIR="/tmp/vibeculling_retry_build_$$"
+     mkdir -p "${RETRY_TEMP_BUILD_DIR}"
+     cp VibeCulling.py "${RETRY_TEMP_BUILD_DIR}/"
+     cp -r resources "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
+     cp app_icon.icns "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
+     cp version_info.py "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
+     
+     # 임시 디렉토리에서 재시도 빌드 실행
+      cd "${RETRY_TEMP_BUILD_DIR}"
+      pyinstaller \
+        --name "${APP_NAME}" \
+        --windowed \
+        --clean \
+        --onedir \
+        --noconfirm \
+        --noupx \
+        --log-level=INFO \
+        --distpath "${OLDPWD}/dist" \
+        --workpath "${OLDPWD}/build" \
+        --specpath "${RETRY_TEMP_BUILD_DIR}" \
+        --icon app_icon.icns \
+       --add-data "app_icon.icns:." \
+       --add-data "resources:resources" \
+       --add-data "version_info.py:." \
+       --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
+       --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
+       --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
+       --add-binary "${EXIFTOOL_BIN}:." \
+       --add-binary "${LIBRAW_DYLIB}:." \
+       --collect-all PySide6 \
+       --collect-all PIL \
+       --collect-all pillow \
+       --collect-all pillow_heif \
+       --hidden-import=PIL \
+       --hidden-import=PIL.Image \
+       --hidden-import=PIL.ExifTags \
+       --hidden-import=exifread \
+       --hidden-import=rawpy \
+       --exclude-module tkinter \
+       --exclude-module matplotlib \
+       --exclude-module numpy.testing \
+       --exclude-module test \
+       --exclude-module unittest \
+       VibeCulling.py
+     
+     # 원래 디렉토리로 돌아가기
+     cd "${OLDPWD}"
+     
+     # 재시도용 임시 디렉토리 정리
+     rm -rf "${RETRY_TEMP_BUILD_DIR}" 2>/dev/null || true
+     
+     # 혹시 생성된 spec 파일 삭제
+     rm -f VibeCulling.spec 2>/dev/null || true
     if [[ $? -ne 0 ]]; then
         log_error "PyInstaller 재시도도 실패"
         exit 1
