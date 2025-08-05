@@ -28,7 +28,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
+        # 최신 버전으로 업데이트하여 심볼릭 링크 버그 수정
+        pip install --upgrade pyinstaller
+        pip install --upgrade PySide6
         pip install exifread
     
     - name: Clean previous build artifacts
@@ -37,11 +39,10 @@ jobs:
         rm -rf build
         rm -rf __pycache__
         rm -rf *.spec
-    
-    - name: Remove conflicting Qt3DAnimation Resources
-      run: |
-        rm -rf dist/VibeCulling/_internal/PySide6/Qt/lib/Qt3DAnimation.framework/Resources
-        rm -rf dist/VibeCulling/_internal/PySide6
+        # PySide6 캐시 및 임시 파일도 정리
+        rm -rf ~/.cache/pip
+        find . -name "*.pyc" -delete
+        find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
     
     - name: Build macOS app
       run: |
