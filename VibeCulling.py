@@ -12875,6 +12875,17 @@ class VibeCullingApp(QMainWindow):
         logging.info("작업 공간 초기화 시작...")
         self.setWindowTitle("VibeCulling") # 제목표시줄 초기화
 
+        # 대기 중인 모든 복사 작업을 취소합니다.
+        if hasattr(self, 'copy_queue'):
+            logging.debug("  -> 대기 중인 복사 작업 큐를 비웁니다...")
+            while not self.copy_queue.empty():
+                try:
+                    # 큐에서 항목을 꺼내 버립니다.
+                    self.copy_queue.get_nowait()
+                except queue.Empty:
+                    # 다른 스레드와의 경쟁 조건으로 인해 큐가 비었을 경우를 대비
+                    break
+
         # 0. 모든 백그라운드 작업을 가장 먼저, 확실하게 중단시킵니다.
         if hasattr(self, 'resource_manager'):
             self.resource_manager.cancel_all_tasks()
