@@ -5,3 +5,4 @@ Pillow
 PySide6
 pillow_heif
 rawpy
+exifread
