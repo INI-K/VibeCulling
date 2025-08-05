@@ -163,10 +163,11 @@ pyinstaller \
   --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
   --add-binary "${EXIFTOOL_BIN}:." \
   --add-binary "${LIBRAW_DYLIB}:." \
-  --collect-all PySide6 \
-  --collect-all PIL \
-  --collect-all pillow \
-  --collect-all pillow_heif \
+  --hidden-import=PySide6.QtCore \
+  --hidden-import=PySide6.QtGui \
+  --hidden-import=PySide6.QtWidgets \
+  --collect-submodules PIL \
+  --collect-submodules pillow_heif \
   --hidden-import=PIL \
   --hidden-import=PIL.Image \
   --hidden-import=PIL.ExifTags \
@@ -246,14 +247,15 @@ if [[ $? -ne 0 ]]; then
        --add-data "resources:resources" \
        --add-data "version_info.py:." \
        --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
-       --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
-       --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
-       --add-binary "${EXIFTOOL_BIN}:." \
-       --add-binary "${LIBRAW_DYLIB}:." \
-       --collect-all PySide6 \
-       --collect-all PIL \
-       --collect-all pillow \
-       --collect-all pillow_heif \
+    --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
+    --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
+    --add-binary "${EXIFTOOL_BIN}:." \
+    --add-binary "${LIBRAW_DYLIB}:." \
+    --hidden-import=PySide6.QtCore \
+    --hidden-import=PySide6.QtGui \
+    --hidden-import=PySide6.QtWidgets \
+    --collect-submodules PIL \
+    --collect-submodules pillow_heif \
        --hidden-import=PIL \
        --hidden-import=PIL.Image \
        --hidden-import=PIL.ExifTags \
