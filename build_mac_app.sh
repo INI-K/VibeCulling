@@ -96,16 +96,17 @@ fi
 log_info "ExifTool 경로: ${EXIFTOOL_BIN}"
 log_info "LibRaw 경로: ${LIBRAW_DYLIB}"
 
-# 이전 빌드 정리
-if [[ -d "dist" ]]; then
-    log_info "이전 빌드 파일 정리 중..."
-    rm -rf dist build
-fi
+# 이전 빌드 정리 (더 철저하게)
+log_info "이전 빌드 파일 정리 중..."
+rm -rf dist build *.spec 2>/dev/null || true
+rm -rf __pycache__ .pytest_cache 2>/dev/null || true
+find . -name "*.pyc" -delete 2>/dev/null || true
+find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
-# PySide6 심볼릭 링크 충돌 방지를 위한 정리
-log_info "PySide6 관련 기존 심볼릭 링크 정리 중..."
-rm -rf "$HOME/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6/Qt/lib/Qt3DAnimation.framework/Resources" 2>/dev/null || true
-rm -rf "$HOME/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6" 2>/dev/null || true
+# PySide6 관련 캐시 및 임시 파일 정리
+log_info "PySide6 관련 캐시 정리 중..."
+rm -rf ~/.cache/pip 2>/dev/null || true
+rm -rf /tmp/pip-* 2>/dev/null || true
 
 # 버전 파일 생성 (plist 대신 간단한 버전 파일)
 cat > version_info.py << EOF
@@ -125,6 +126,9 @@ pyinstaller \
   --clean \
   --onedir \
   --noconfirm \
+  --distpath ./dist \
+  --workpath ./build \
+  --specpath . \
   --icon app_icon.icns \
   --add-data "app_icon.icns:." \
   --add-data "resources:resources" \
