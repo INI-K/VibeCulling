@@ -4031,12 +4031,13 @@ class FolderLoaderWorker(QObject):
 
 class CopyWorker(QObject):
     """백그라운드 스레드에서 파일 복사를 순차적으로 처리하는 워커"""
-    copyFinished = Signal(str) # 복사 완료 시 메시지를 전달하는 신호
+    copyFinished = Signal(str)
+    copyFailed = Signal(str) # <-- 실패 신호 추가
 
     def __init__(self, copy_queue, parent_app):
         super().__init__()
         self.copy_queue = copy_queue
-        self.parent_app = parent_app # VibeCullingApp 인스턴스 참조
+        self.parent_app = parent_app
         self._is_running = True
 
     def stop(self):
@@ -4045,7 +4046,7 @@ class CopyWorker(QObject):
     def _copy_single_file(self, source_path, target_folder):
         """파일을 대상 폴더로 복사하고, 이름 충돌 시 새 이름을 부여합니다."""
         if not source_path or not target_folder:
-            return None
+            return None, "Source or target is missing." # 오류 메시지 반환
         target_dir = Path(target_folder)
         target_path = target_dir / source_path.name
 
@@ -4060,40 +4061,45 @@ class CopyWorker(QObject):
                 counter += 1
         
         try:
-            shutil.copy2(str(source_path), str(target_path)) # copy2로 메타데이터 보존
+            shutil.copy2(str(source_path), str(target_path))
             logging.info(f"파일 복사: {source_path} -> {target_path}")
-            return target_path
+            return target_path, None # 성공 시 (경로, None) 반환
         except Exception as e:
-            logging.error(f"파일 복사 실패: {source_path} -> {target_path}, 오류: {e}")
-            return None
+            error_message = f"{source_path.name}: {str(e)}"
+            logging.error(f"파일 복사 실패: {error_message}")
+            return None, error_message # 실패 시 (None, 오류 메시지) 반환
 
     @Slot()
     def process_queue(self):
         """큐에 작업이 들어올 때까지 대기하고, 작업을 순차적으로 처리합니다."""
         while self._is_running:
             try:
-                # 1. 큐에서 작업을 먼저 하나의 변수로 받습니다.
                 task = self.copy_queue.get()
 
-                # 2. 받은 작업이 종료 신호(None)인지 확인합니다.
                 if task is None or not self._is_running:
-                    break # 종료 신호이거나 stop()이 호출되었으면 루프를 빠져나갑니다.
+                    break
 
-                # 3. 유효한 작업일 경우에만 변수에 할당(unpack)합니다.
                 files_to_copy, target_folder, raw_files_dict, copy_raw_flag = task
                 
                 copied_count = 0
+                failed_files = []
                 for jpg_path in files_to_copy:
-                    if self._copy_single_file(jpg_path, target_folder):
+                    _, error = self._copy_single_file(jpg_path, target_folder)
+                    if error:
+                        failed_files.append(error)
+                    else:
                         copied_count += 1
-                        # RAW 파일 복사 로직
                         if copy_raw_flag:
-                            base_name = jpg_path.stem
-                            if base_name in raw_files_dict:
-                                raw_path = raw_files_dict[base_name]
-                                self._copy_single_file(raw_path, target_folder)
+                            raw_path = raw_files_dict.get(jpg_path.stem)
+                            if raw_path:
+                                _, raw_error = self._copy_single_file(raw_path, target_folder)
+                                if raw_error:
+                                    failed_files.append(raw_error)
 
-                # 작업 완료 후 피드백 메시지 생성 및 신호 발생
+                if failed_files:
+                    fail_msg_key = "다음 파일 복사에 실패했습니다:\n\n"
+                    self.copyFailed.emit(LanguageManager.translate(fail_msg_key) + "\n".join(failed_files))
+
                 if copied_count > 0:
                     if len(files_to_copy) == 1:
                         filename = files_to_copy[0].name
@@ -4903,14 +4909,20 @@ class VibeCullingApp(QMainWindow):
         self.copy_worker = CopyWorker(self.copy_queue, self) # 부모 앱 참조 전달
         self.copy_worker.moveToThread(self.copy_thread)
 
-        # 워커의 작업 완료 신호를 메인 스레드의 UI 업데이트 슬롯에 연결
+        # 성공 신호 연결 (중복 제거)
         self.copy_worker.copyFinished.connect(self.show_feedback_message)
+        
+        # 실패 신호를 받으면 메시지 박스를 띄우는 람다 함수 연결
+        self.copy_worker.copyFailed.connect(
+            lambda msg: self.show_themed_message_box(QMessageBox.Warning, LanguageManager.translate("복사 오류"), msg)
+        )
 
         # 스레드가 시작될 때 워커의 처리 루프를 시작하도록 연결
         self.copy_thread.started.connect(self.copy_worker.process_queue)
         
         # 스레드 시작
         self.copy_thread.start()
+
 
     @Slot(str)
     def show_feedback_message(self, message):
