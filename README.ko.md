@@ -71,7 +71,7 @@
 
 ## 시작하기
 
-**[GitHub Release 페이지](https://github.com/newboon/VibeCulling/releases)**에서 Windows 및 macOS용 최신 버전을 다운로드할 수 있습니다.
+[GitHub Release 페이지](https://github.com/newboon/VibeCulling/releases)에서 Windows 및 macOS용 최신 버전을 다운로드할 수 있습니다.
 
 -   **Windows:** `VibeCulling_vX.X.X_win.zip` 파일을 다운로드하세요.
 -   zip 파일을 압축 해제하세요
