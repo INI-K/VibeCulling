@@ -36,7 +36,7 @@ jobs:
         ./build_mac_app.sh
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: VibeCulling-macOS
         path: dist/
