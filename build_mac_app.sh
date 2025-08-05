@@ -127,7 +127,8 @@ EOF
 # PyInstaller 실행
 log_info "PyInstaller를 사용하여 VibeCulling 앱 빌드 중..."
 
-# spec 파일 없이 직접 빌드 (심볼릭 링크 충돌 방지)
+# spec 파일 완전 제거하고 Python 파일로 직접 빌드
+log_info "spec 파일 없이 Python 파일로 직접 빌드 시작..."
 pyinstaller \
   --name "${APP_NAME}" \
   --windowed \
@@ -135,9 +136,9 @@ pyinstaller \
   --onedir \
   --noconfirm \
   --noupx \
+  --log-level=INFO \
   --distpath ./dist \
   --workpath ./build \
-  --specpath . \
   --icon app_icon.icns \
   --add-data "app_icon.icns:." \
   --add-data "resources:resources" \
@@ -163,6 +164,9 @@ pyinstaller \
   --exclude-module unittest \
   VibeCulling.py
 
+# spec 파일이 생성되었다면 즉시 삭제
+rm -f VibeCulling.spec 2>/dev/null || true
+
 if [[ $? -ne 0 ]]; then
     log_error "PyInstaller 빌드 실패 - 재시도 중..."
     
@@ -177,18 +181,18 @@ if [[ $? -ne 0 ]]; then
     # 작업 디렉토리 새로 생성
     mkdir -p dist build
     
-    # 재시도 (spec 파일 없이 직접 빌드)
-    log_info "PyInstaller 재시도 중 (spec 파일 없이)..."
-    pyinstaller \
-      --name "${APP_NAME}" \
-      --windowed \
-      --clean \
-      --onedir \
-      --noconfirm \
-      --noupx \
-      --distpath ./dist \
-      --workpath ./build \
-      --specpath . \
+    # 재시도 (spec 파일 완전 제거하고 Python 파일로 직접 빌드)
+     log_info "PyInstaller 재시도 중 (spec 파일 완전 제거)..."
+     pyinstaller \
+       --name "${APP_NAME}" \
+       --windowed \
+       --clean \
+       --onedir \
+       --noconfirm \
+       --noupx \
+       --log-level=INFO \
+       --distpath ./dist \
+       --workpath ./build \
       --icon app_icon.icns \
       --add-data "app_icon.icns:." \
       --add-data "resources:resources" \
@@ -214,6 +218,8 @@ if [[ $? -ne 0 ]]; then
       --exclude-module unittest \
       VibeCulling.py
     
+    # spec 파일이 생성되었다면 즉시 삭제
+    rm -f VibeCulling.spec 2>/dev/null || true
     if [[ $? -ne 0 ]]; then
         log_error "PyInstaller 재시도도 실패"
         exit 1
