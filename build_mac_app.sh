@@ -108,6 +108,11 @@ log_info "PySide6 관련 캐시 정리 중..."
 rm -rf ~/.cache/pip 2>/dev/null || true
 rm -rf /tmp/pip-* 2>/dev/null || true
 
+# PyInstaller 작업 디렉토리 강제 정리
+log_info "PyInstaller 작업 디렉토리 강제 정리 중..."
+mkdir -p dist build 2>/dev/null || true
+rm -rf dist/* build/* 2>/dev/null || true
+
 # 버전 파일 생성 (plist 대신 간단한 버전 파일)
 cat > version_info.py << EOF
 version_info = {
@@ -155,8 +160,56 @@ pyinstaller \
   VibeCulling.py
 
 if [[ $? -ne 0 ]]; then
-    log_error "PyInstaller 빌드 실패"
-    exit 1
+    log_error "PyInstaller 빌드 실패 - 재시도 중..."
+    
+    # 심볼릭 링크 충돌 해결을 위한 추가 정리
+    log_info "심볼릭 링크 충돌 해결을 위한 정리 중..."
+    rm -rf dist build *.spec 2>/dev/null || true
+    
+    # 특정 PySide6 경로 정리
+    find . -path "*/PySide6/Qt/lib/Qt3DAnimation.framework/Resources" -type l -delete 2>/dev/null || true
+    find . -path "*/PySide6/Qt/lib/*/Resources" -type l -delete 2>/dev/null || true
+    
+    # 재시도
+    log_info "PyInstaller 재시도 중..."
+    pyinstaller \
+      --name "${APP_NAME}" \
+      --windowed \
+      --clean \
+      --onedir \
+      --noconfirm \
+      --distpath ./dist \
+      --workpath ./build \
+      --specpath . \
+      --icon app_icon.icns \
+      --add-data "app_icon.icns:." \
+      --add-data "resources:resources" \
+      --add-data "version_info.py:." \
+      --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
+      --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
+      --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
+      --add-binary "${EXIFTOOL_BIN}:." \
+      --add-binary "${LIBRAW_DYLIB}:." \
+      --collect-all PySide6 \
+      --collect-all PIL \
+      --collect-all pillow \
+      --collect-all pillow_heif \
+      --hidden-import=PIL \
+      --hidden-import=PIL.Image \
+      --hidden-import=PIL.ExifTags \
+      --hidden-import=exifread \
+      --hidden-import=rawpy \
+      --exclude-module tkinter \
+      --exclude-module matplotlib \
+      --exclude-module numpy.testing \
+      --exclude-module test \
+      --exclude-module unittest \
+      VibeCulling.py
+    
+    if [[ $? -ne 0 ]]; then
+        log_error "PyInstaller 재시도도 실패"
+        exit 1
+    fi
 fi
 
 log_success "PyInstaller 빌드 완료"
