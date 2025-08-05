@@ -8,4 +8,6 @@ dependencies:
   - psutil
   - pillow
   - pyside6
+  - pillow_heif
+  - rawpy
   - pip
