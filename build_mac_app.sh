@@ -102,6 +102,11 @@ if [[ -d "dist" ]]; then
     rm -rf dist build
 fi
 
+# PySide6 심볼릭 링크 충돌 방지를 위한 정리
+log_info "PySide6 관련 기존 심볼릭 링크 정리 중..."
+rm -rf "$HOME/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6/Qt/lib/Qt3DAnimation.framework/Resources" 2>/dev/null || true
+rm -rf "$HOME/work/VibeCulling/VibeCulling/dist/VibeCulling/_internal/PySide6" 2>/dev/null || true
+
 # 버전 파일 생성 (plist 대신 간단한 버전 파일)
 cat > version_info.py << EOF
 version_info = {
