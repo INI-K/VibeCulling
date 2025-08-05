@@ -44,10 +44,8 @@ log_info "VibeCulling v${VERSION} 빌드 시작..."
 # 환경 확인
 log_info "빌드 환경 확인 중..."
 
-# Conda 환경 활성화
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate vibeculling_env
-PYTHON_BIN="$(which python)"
+# GitHub Actions 환경에서 Python 사용
+PYTHON_BIN="$(which python3 || which python)"
 
 log_info "Python 경로: ${PYTHON_BIN}"
 log_info "Python 버전: $(${PYTHON_BIN} --version)"
