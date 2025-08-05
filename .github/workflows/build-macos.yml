@@ -22,7 +22,7 @@ jobs:
     
     - name: Install system dependencies
       run: |
-        brew install exiftool libraw
+        brew install exiftool libraw create-dmg
     
     - name: Install Python dependencies
       run: |
@@ -103,4 +103,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: VibeCulling-macOS
-        path: dist/
+        path: |
+          dist/
+          *.dmg
+          *.zip
