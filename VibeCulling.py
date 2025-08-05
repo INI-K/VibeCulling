@@ -115,7 +115,7 @@ def setup_logger():
     logger.addHandler(console_handler)
     
     # 버전 및 시작 메시지 로깅
-    logging.info("VibeCulling 시작 (버전: 25.08.04)")
+    logging.info("VibeCulling 시작 (버전: 25.08.05)")
     
     return logger
 # 로거 초기화
@@ -8584,7 +8584,7 @@ class VibeCullingApp(QMainWindow):
 
         info_text = f"""
         <h2 style="color: {accent_color};">VibeCulling</h2>
-        <p style="margin-bottom: {version_margin}px;">Version: 25.08.04</p>
+        <p style="margin-bottom: {version_margin}px;">Version: 25.08.05</p>
         <p>{LanguageManager.translate("자유롭게 사용, 수정, 배포할 수 있는 오픈소스 소프트웨어입니다.")}</p>
         <p>{LanguageManager.translate("AGPL-3.0 라이선스 조건에 따라 소스 코드 공개 의무가 있습니다.")}</p>
         <p style="margin-bottom: {paragraph_margin}px;">{LanguageManager.translate("이 프로그램이 마음에 드신다면, 커피 한 잔으로 응원해 주세요.")}</p>
@@ -13683,8 +13683,15 @@ class VibeCullingApp(QMainWindow):
 
                 rows, cols = self._get_grid_dimensions()
                 num_cells = rows * cols
-                total_pages = (total + num_cells - 1) // num_cells
-                current_page = (self.grid_page_start_index // num_cells) + 1
+                
+                # num_cells가 0이 되는 예외 상황을 방지하여 ZeroDivisionError를 막습니다.
+                if num_cells == 0:
+                    logging.error(f"update_image_count_label: num_cells가 0이지만 grid_mode는 '{self.grid_mode}'입니다. 충돌을 방지합니다.")
+                    total_pages = 1
+                    current_page = 1
+                else:
+                    total_pages = (total + num_cells - 1) // num_cells
+                    current_page = (self.grid_page_start_index // num_cells) + 1
 
                 count_part = f"{current_display_index} / {total}" if current_display_index != -1 else f"- / {total}"
                 page_part = f"Pg. {current_page} / {total_pages}"
@@ -13697,6 +13704,7 @@ class VibeCullingApp(QMainWindow):
                 text = f"{current_display_index} / {total}" if current_display_index != -1 else f"- / {total}"
 
         self.image_count_label.setText(text)
+
 
     def update_counters(self):
         """이미지 카운터 레이블 업데이트"""
@@ -13835,9 +13843,9 @@ class VibeCullingApp(QMainWindow):
                 extension_groups = {"JPG": ['.jpg', '.jpeg'], "PNG": ['.png'], "WebP": ['.webp'], "HEIC": ['.heic', '.heif'], "BMP": ['.bmp'], "TIFF": ['.tif', '.tiff']}
                 for name, checkbox in self.ext_checkboxes.items():
                     is_checked = any(ext in self.supported_image_extensions for ext in extension_groups[name])
-                    checkbox.blockSignals(True)  # 시그널 차단
+                    checkbox.blockSignals(True)
                     checkbox.setChecked(is_checked)
-                    checkbox.blockSignals(False) # 시그널 복구
+                    checkbox.blockSignals(False)
             self.folder_count = loaded_data.get("folder_count", 3)
             loaded_folders = loaded_data.get("target_folders", [])
             self.target_folders = (loaded_folders + [""] * self.folder_count)[:self.folder_count]
@@ -13845,11 +13853,9 @@ class VibeCullingApp(QMainWindow):
             self.zoom_mode = loaded_data.get("zoom_mode", "Fit")
             self.zoom_spin_value = loaded_data.get("zoom_spin_value", 2.0)
             
-            # ==================== 수정 시작 1: last_active_grid_mode 복원 ====================
-            # previous_grid_mode와 last_active_grid_mode를 함께 복원하여 일관성 유지
-            self.previous_grid_mode = loaded_data.get("previous_grid_mode", "2x2")
+            # previous_grid_mode가 None일 경우 안전한 기본값('2x2')을 사용합니다.
+            self.previous_grid_mode = loaded_data.get("previous_grid_mode") or "2x2"
             self.last_active_grid_mode = self.previous_grid_mode
-            # ==================== 수정 종료 1 ====================
             
             self._pending_view_state = {
                 "current_image_index": loaded_data.get("current_image_index", -1),
@@ -13870,7 +13876,7 @@ class VibeCullingApp(QMainWindow):
                 idx = self.date_format_combo.findData(date_format)
                 if idx >= 0: self.date_format_combo.setCurrentIndex(idx)
             if hasattr(self, 'theme_combo'):
-                index = self.theme_combo.findData(theme) # findText 대신 findData 사용
+                index = self.theme_combo.findData(theme)
                 if index >= 0: self.theme_combo.setCurrentIndex(index)
             if hasattr(self, 'panel_position_group'):
                 panel_button_id = 1 if self.control_panel_on_right else 0
@@ -13927,11 +13933,11 @@ class VibeCullingApp(QMainWindow):
                 self.compare_mode_active = False
                 logging.info("RAW+Decode 모드이므로 Grid/Compare 모드를 강제로 해제합니다.")
             else:
-                self.grid_mode = saved_grid_mode
+                # grid_mode가 None인 경우를 방지
+                self.grid_mode = saved_grid_mode if saved_grid_mode is not None else "Off"
 
-            # ==================== 수정 시작 2: UI 컨트롤 상태 복원 ====================
             if hasattr(self, 'grid_mode_group'):
-                self.grid_mode_group.blockSignals(True) # 시그널을 막아 불필요한 이벤트 방지
+                self.grid_mode_group.blockSignals(True)
 
                 if self.compare_mode_active:
                     if hasattr(self, 'compare_radio'):
@@ -13939,18 +13945,17 @@ class VibeCullingApp(QMainWindow):
                 elif self.grid_mode == "Off":
                     if hasattr(self, 'grid_off_radio'):
                         self.grid_off_radio.setChecked(True)
-                else: # Grid On
+                else:
                     if hasattr(self, 'grid_on_radio'):
                         self.grid_on_radio.setChecked(True)
-                    # Grid On일 때 콤보박스 상태도 함께 복원합니다.
                     if hasattr(self, 'grid_size_combo'):
+                        # grid_mode가 None이 아니라고 확신할 수 있음
                         combo_text = self.grid_mode.replace("x", " x ")
                         index = self.grid_size_combo.findText(combo_text)
                         if index != -1:
                             self.grid_size_combo.setCurrentIndex(index)
                 
-                self.grid_mode_group.blockSignals(False) # 작업 완료 후 시그널 복구
-            # ==================== 수정 종료 2 ====================
+                self.grid_mode_group.blockSignals(False)
             
             if self.is_raw_only_mode and self.last_loaded_raw_method_from_state == "decode":
                 raw_folder_path = loaded_data.get("raw_folder", "")
@@ -13963,8 +13968,8 @@ class VibeCullingApp(QMainWindow):
             if self.raw_folder and Path(self.raw_folder).is_dir(): self.raw_folder_path_label.setText(self.raw_folder)
             else: self.raw_folder = ""; self.raw_folder_path_label.setText(LanguageManager.translate("폴더 경로"))
             
-            self._rebuild_folder_selection_ui() # 폴더 개수에 맞춰 UI 생성
-            self.update_all_folder_labels_state() # 생성된 UI에 경로/상태 반영
+            self._rebuild_folder_selection_ui()
+            self.update_all_folder_labels_state()
             
             # 6. 이미지 목록 로드 시작
             if self.is_raw_only_mode:
@@ -14492,8 +14497,20 @@ class VibeCullingApp(QMainWindow):
                 self._update_view_for_grid_change()
                 self.display_current_image()
             else: # Grid 모드
-                # 페이지를 재계산하지 않고, 현재 페이지의 그리드 뷰만 새로고침합니다.
                 self.grid_mode = mode_before_move
+                
+                # UI 컨트롤을 업데이트하는 동안 신호 발생을 막아 _on_grid_mode_toggled의 자동 실행을 방지합니다.
+                self.grid_mode_group.blockSignals(True)
+                self.grid_on_radio.setChecked(True)
+                self.grid_mode_group.blockSignals(False)
+
+                self.grid_size_combo.blockSignals(True)
+                combo_text = self.grid_mode.replace("x", " x ")
+                index = self.grid_size_combo.findText(combo_text)
+                if index != -1:
+                    self.grid_size_combo.setCurrentIndex(index)
+                self.grid_size_combo.blockSignals(False)
+                
                 self.update_grid_view() 
             
             self.update_counters()
@@ -14502,6 +14519,7 @@ class VibeCullingApp(QMainWindow):
         except Exception as e:
             logging.error(f"단일 Undo 작업 중 오류 발생: {e}", exc_info=True)
             self.show_themed_message_box(QMessageBox.Critical, "에러", f"실행 취소 중 오류 발생: {str(e)}")
+
 
 
     def update_ui_after_undo_batch(self, batch_entries):
