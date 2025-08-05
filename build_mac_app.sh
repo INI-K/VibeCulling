@@ -96,22 +96,24 @@ fi
 log_info "ExifTool 경로: ${EXIFTOOL_BIN}"
 log_info "LibRaw 경로: ${LIBRAW_DYLIB}"
 
-# 이전 빌드 정리 (더 철저하게)
-log_info "이전 빌드 파일 정리 중..."
-rm -rf dist build *.spec 2>/dev/null || true
-rm -rf __pycache__ .pytest_cache 2>/dev/null || true
+# 이전 빌드 정리 (최강 정리)
+log_info "이전 빌드 파일 완전 정리 중..."
+sudo rm -rf dist build *.spec __pycache__ .pytest_cache 2>/dev/null || true
 find . -name "*.pyc" -delete 2>/dev/null || true
-find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+find . -name "__pycache__" -type d -exec sudo rm -rf {} + 2>/dev/null || true
+find . -type l -delete 2>/dev/null || true
 
-# PySide6 관련 캐시 및 임시 파일 정리
-log_info "PySide6 관련 캐시 정리 중..."
-rm -rf ~/.cache/pip 2>/dev/null || true
-rm -rf /tmp/pip-* 2>/dev/null || true
+# PySide6 및 PyInstaller 캐시 완전 정리
+log_info "모든 캐시 완전 정리 중..."
+sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
+sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
 
-# PyInstaller 작업 디렉토리 강제 정리
-log_info "PyInstaller 작업 디렉토리 강제 정리 중..."
-mkdir -p dist build 2>/dev/null || true
-rm -rf dist/* build/* 2>/dev/null || true
+# 작업 디렉토리 새로 생성
+log_info "작업 디렉토리 새로 생성 중..."
+mkdir -p dist build
+
+# spec 파일 강제 삭제 (매번 새로 생성하도록)
+rm -f VibeCulling.spec 2>/dev/null || true
 
 # 버전 파일 생성 (plist 대신 간단한 버전 파일)
 cat > version_info.py << EOF
@@ -125,12 +127,14 @@ EOF
 # PyInstaller 실행
 log_info "PyInstaller를 사용하여 VibeCulling 앱 빌드 중..."
 
+# spec 파일 없이 직접 빌드 (심볼릭 링크 충돌 방지)
 pyinstaller \
   --name "${APP_NAME}" \
   --windowed \
   --clean \
   --onedir \
   --noconfirm \
+  --noupx \
   --distpath ./dist \
   --workpath ./build \
   --specpath . \
@@ -163,21 +167,25 @@ if [[ $? -ne 0 ]]; then
     log_error "PyInstaller 빌드 실패 - 재시도 중..."
     
     # 심볼릭 링크 충돌 해결을 위한 추가 정리
-    log_info "심볼릭 링크 충돌 해결을 위한 정리 중..."
-    rm -rf dist build *.spec 2>/dev/null || true
+    log_info "심볼릭 링크 충돌 해결을 위한 강력한 정리 중..."
+    sudo rm -rf dist build *.spec __pycache__ .pytest_cache 2>/dev/null || true
+    sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
+    sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
+    find . -type l -delete 2>/dev/null || true
+    find . -name "*.pyc" -delete 2>/dev/null || true
     
-    # 특정 PySide6 경로 정리
-    find . -path "*/PySide6/Qt/lib/Qt3DAnimation.framework/Resources" -type l -delete 2>/dev/null || true
-    find . -path "*/PySide6/Qt/lib/*/Resources" -type l -delete 2>/dev/null || true
+    # 작업 디렉토리 새로 생성
+    mkdir -p dist build
     
-    # 재시도
-    log_info "PyInstaller 재시도 중..."
+    # 재시도 (spec 파일 없이 직접 빌드)
+    log_info "PyInstaller 재시도 중 (spec 파일 없이)..."
     pyinstaller \
       --name "${APP_NAME}" \
       --windowed \
       --clean \
       --onedir \
       --noconfirm \
+      --noupx \
       --distpath ./dist \
       --workpath ./build \
       --specpath . \
