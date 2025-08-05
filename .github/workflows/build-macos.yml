@@ -31,6 +31,13 @@ jobs:
         pip install pyinstaller
         pip install exifread
     
+    - name: Clean previous build artifacts
+      run: |
+        rm -rf dist
+        rm -rf build
+        rm -rf __pycache__
+        rm -rf *.spec
+    
     - name: Build macOS app
       run: |
         chmod +x build_mac_app.sh
