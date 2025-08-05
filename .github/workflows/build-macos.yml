@@ -47,11 +47,15 @@ jobs:
         find . -type l -delete 2>/dev/null || true
         # 작업 디렉토리 새로 생성
         mkdir -p dist build
+        # spec 파일 강제 삭제 (매번 새로 생성하도록)
+        rm -f VibeCulling.spec 2>/dev/null || true
     
     - name: Build macOS app
       run: |
         chmod +x build_mac_app.sh
         ./build_mac_app.sh
+        # 빌드 후 spec 파일 삭제 (심볼릭 링크 충돌 방지)
+        rm -f VibeCulling.spec 2>/dev/null || true
     
     - name: Retry build if failed (강력한 정리 후 재시도)
       if: failure()
@@ -68,8 +72,10 @@ jobs:
         # 작업 디렉토리 새로 생성
         mkdir -p dist build
         # 재시도
-        chmod +x build_mac_app.sh
-        ./build_mac_app.sh
+         chmod +x build_mac_app.sh
+         ./build_mac_app.sh
+         # 재시도 후에도 spec 파일 삭제
+         rm -f VibeCulling.spec 2>/dev/null || true
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
