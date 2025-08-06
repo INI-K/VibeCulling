@@ -115,7 +115,7 @@ def setup_logger():
     logger.addHandler(console_handler)
     
     # 버전 및 시작 메시지 로깅
-    logging.info("VibeCulling 시작 (버전: 25.08.05)")
+    logging.info("VibeCulling 시작 (버전: 25.08.06)")
     
     return logger
 # 로거 초기화
@@ -8824,7 +8824,7 @@ class VibeCullingApp(QMainWindow):
 
         info_text = f"""
         <h2 style="color: {accent_color};">VibeCulling</h2>
-        <p style="margin-bottom: {version_margin}px;">Version: 25.08.05</p>
+        <p style="margin-bottom: {version_margin}px;">Version: 25.08.06</p>
         <p>{LanguageManager.translate("자유롭게 사용, 수정, 배포할 수 있는 오픈소스 소프트웨어입니다.")}</p>
         <p>{LanguageManager.translate("AGPL-3.0 라이선스 조건에 따라 소스 코드 공개 의무가 있습니다.")}</p>
         <p style="margin-bottom: {paragraph_margin}px;">{LanguageManager.translate("이 프로그램이 마음에 드신다면, 커피 한 잔으로 응원해 주세요.")}</p>

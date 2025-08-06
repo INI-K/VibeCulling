@@ -2,8 +2,8 @@
 # build_mac_app.sh 스크립트에서 사용됩니다.
 
 # 파일 버전 정보
-FileVersion='25.08.05'
-ProductVersion='25.08.05'
+FileVersion='25.08.06'
+ProductVersion='25.08.06'
 
 # 애플리케이션 정보
 AppName='VibeCulling'
