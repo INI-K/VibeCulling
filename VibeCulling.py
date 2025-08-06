@@ -4156,6 +4156,35 @@ class VibeCullingApp(QMainWindow):
         ("key", "Delete", "작업 상태 초기화"),
     ]
 
+    # macOS용 단축키 정의
+    SHORTCUT_DEFINITIONS_MAC = [
+        ("group", "탐색"),
+        ("key", "WASD / 방향키", "사진 넘기기"),
+        ("key", "Shift + WASD/방향키", "뷰포트 이동 (확대 중에)"),
+        ("key", "Shift + A/D", "이전/다음 페이지 (그리드 모드)"),
+        ("key", "Enter", "사진 목록 보기"),
+        ("key", "F5", "폴더 새로고침"),
+        
+        ("group", "보기 설정"),
+        ("key", "F1 / F2 / F3", "줌 모드 변경 (Fit / 100% / 가변)"),
+        ("key", "Space", "줌 전환 (Fit/100%) 또는 그리드에서 확대"),
+        ("key", "ESC", "줌 아웃 또는 그리드 복귀"),
+        ("key", "Z [Zoom-out]", "줌 아웃 (가변 모드)"),
+        ("key", "X [eXpand]", "줌 인 (가변 모드)"),
+        ("key", "R [Reset]", "뷰포트 중앙 정렬"),
+        ("key", "G [Grid]", "그리드 모드 켜기/끄기"),
+        ("key", "C [Compare]", "A | B 비교 모드 켜기/끄기"),
+        ("key", "Q / E (* 꾹 누르기)", "이미지 회전 (반시계/시계)"),
+
+        ("group", "파일 작업"),
+        ("key", "1 ~ 9", "지정한 폴더로 사진 이동"),
+        ("key", "Shift + 1~9", "지정한 폴더로 사진 복사"),
+        ("key", "Cmd + Z", "파일 이동 취소 (Undo)"),
+        ("key", "Cmd + Y / Cmd + Shift + Z", "파일 이동 다시 실행 (Redo)"),
+        ("key", "Cmd + A", "페이지 전체 선택 (그리드 모드)"),
+        ("key", "Delete", "작업 상태 초기화"),
+    ]
+
     KEY_MAP_SHIFT_NUMBER = {
         Qt.Key_Exclam: Qt.Key_1,      # ! -> 1
         Qt.Key_At: Qt.Key_2,          # @ -> 2
@@ -7357,6 +7386,13 @@ class VibeCullingApp(QMainWindow):
 
     def _build_shortcut_html(self):
         """단축키 안내를 위한 HTML 문자열을 생성하는 통합 함수입니다."""
+        
+        # 현재 운영체제에 맞는 단축키 정의를 선택합니다.
+        if sys.platform == 'darwin': # macOS
+            definitions = self.SHORTCUT_DEFINITIONS_MAC
+        else: # Windows, Linux 등
+            definitions = self.SHORTCUT_DEFINITIONS
+
         # 테이블 스타일 정의
         html = """
         <style>
@@ -7382,8 +7418,10 @@ class VibeCullingApp(QMainWindow):
         </style>
         <table>
         """
-        first_group = True # 첫 번째 그룹인지 확인하기 위한 플래그
-        for item in self.SHORTCUT_DEFINITIONS:
+        first_group = True
+        
+        # 선택된 definitions 리스트를 순회합니다.
+        for item in definitions:
             if len(item) == 2 and item[0] == "group":
                 # 그룹 제목 행
                 item_type, col1 = item
