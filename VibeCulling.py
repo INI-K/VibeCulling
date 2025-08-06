@@ -1252,7 +1252,6 @@ class EditableFolderPathLabel(QLineEdit):
         if self._current_state == self.STATE_DISABLED:
             self.setReadOnly(True)
             self.setCursor(Qt.ArrowCursor)
-            self.setFocusPolicy(Qt.NoFocus) # <-- 포커스 정책 명시
             style = f"""
                 QLineEdit {{
                     color: {ThemeManager.get_color('text_disabled')};
@@ -1264,11 +1263,9 @@ class EditableFolderPathLabel(QLineEdit):
             self.setPlaceholderText("")
             self.setText(LanguageManager.translate("폴더 경로"))
             self.setToolTip(LanguageManager.translate("폴더를 드래그하여 지정하세요."))
-
         elif self._current_state == self.STATE_EDITABLE:
             self.setReadOnly(False)
             self.setCursor(Qt.IBeamCursor)
-            self.setFocusPolicy(Qt.StrongFocus) # <-- 포커스 정책 명시
             style = f"""
                 QLineEdit {{
                     color: {ThemeManager.get_color('text')};
@@ -1281,11 +1278,9 @@ class EditableFolderPathLabel(QLineEdit):
             self.setText("")
             self.setPlaceholderText(LanguageManager.translate("폴더 경로"))
             self.setToolTip(LanguageManager.translate("새 폴더명을 입력하거나 폴더를 드래그하여 지정하세요."))
-
         elif self._current_state == self.STATE_SET:
             self.setReadOnly(True)
             self.setCursor(Qt.PointingHandCursor)
-            self.setFocusPolicy(Qt.NoFocus) # <-- 포커스 정책 명시
             style = f"""
                 QLineEdit {{
                     color: #AAAAAA;
@@ -1301,11 +1296,6 @@ class EditableFolderPathLabel(QLineEdit):
         
         self.setStyleSheet(style)
         self.original_style = style
-        
-        self.style().unpolish(self)
-        self.style().polish(self)
-        self.update()
-
         self.stateChanged.emit(self.folder_index, self._current_state)
 
     def set_path_text(self, text: str):
