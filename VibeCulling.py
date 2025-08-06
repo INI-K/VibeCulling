@@ -3525,15 +3525,20 @@ class ThumbnailPanel(QWidget):
         if index < 0 or index >= self.model.rowCount():
             return
         
-        # QTimer.singleShot을 사용하여 scrollTo를 이벤트 루프의 다음 사이클에서 실행합니다.
-        # 이렇게 하면 모델/뷰 업데이트가 완료된 후 스크롤이 실행되어 정확성이 높아집니다.
-        QTimer.singleShot(0, lambda: self._perform_scroll(index))
+        # 10ms의 짧은 지연을 추가하여 뷰가 업데이트될 시간을 확실히 보장합니다.
+        QTimer.singleShot(10, lambda: self._perform_scroll(index))
 
     def _perform_scroll(self, index):
         """실제 스크롤을 수행하는 내부 메서드"""
         # 타이머 콜백 시점에 인덱스가 여전히 유효한지 다시 확인
         if 0 <= index < self.model.rowCount():
             model_index = self.model.createIndex(index, 0)
+            
+            # 1. 뷰에게 현재 인덱스가 무엇인지 명시적으로 알려줍니다.
+            #    이렇게 하면 뷰가 스크롤 위치를 계산하기 전에 올바른 아이템에 집중하게 됩니다.
+            self.list_view.setCurrentIndex(model_index)
+            
+            # 2. 스크롤을 수행합니다.
             self.list_view.scrollTo(model_index, QListView.PositionAtCenter)
     
     def preload_surrounding_thumbnails(self, center_index, radius=5):
