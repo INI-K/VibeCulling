@@ -8,7 +8,11 @@ import shutil
 import queue
 import threading
 import logging
-from PySide6.QtCore import QObject, Signal
+from pathlib import Path
+from PySide6.QtCore import QObject, Signal, Slot
+
+# 필요한 모듈 import
+from ..config import LanguageManager
 
 
 class CopyWorker(QObject):

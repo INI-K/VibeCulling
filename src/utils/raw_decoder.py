@@ -14,6 +14,80 @@ import os
 from multiprocessing import cpu_count
 
 
+def decode_raw_in_process(input_queue, output_queue):
+    """별도 프로세스에서 RAW 파일을 디코딩하는 워커 함수"""
+    import rawpy
+    from PIL import Image
+    import numpy as np
+    import logging
+
+    while True:
+        try:
+            # 작업 큐에서 항목 가져오기
+            item = input_queue.get()
+            if item is None:
+                # 종료 신호
+                break
+
+            file_path, task_id = item
+
+            try:
+                # RAW 파일 열기 및 디코딩
+                with rawpy.imread(file_path) as raw:
+                    # 기본 설정으로 RGB 배열 생성
+                    rgb = raw.postprocess(
+                        use_camera_wb=True,
+                        half_size=False,
+                        no_auto_bright=False,
+                        output_bps=8
+                    )
+
+                # NumPy 배열을 PIL Image로 변환
+                height, width = rgb.shape[:2]
+                pil_image = Image.fromarray(rgb, 'RGB')
+
+                # 성공 결과
+                result = {
+                    'task_id': task_id,
+                    'success': True,
+                    'image': pil_image,
+                    'width': width,
+                    'height': height,
+                    'error': None
+                }
+
+            except Exception as e:
+                # 디코딩 실패
+                result = {
+                    'task_id': task_id,
+                    'success': False,
+                    'image': None,
+                    'width': 0,
+                    'height': 0,
+                    'error': str(e)
+                }
+                logging.error(f"RAW 디코딩 실패 ({file_path}): {e}")
+
+            # 결과를 출력 큐에 전송
+            output_queue.put(result)
+
+        except Exception as e:
+            logging.error(f"RAW 디코더 프로세스 오류: {e}")
+            # 프로세스 오류 발생시에도 결과를 전송하여 무한 대기 방지
+            try:
+                error_result = {
+                    'task_id': task_id if 'task_id' in locals() else -1,
+                    'success': False,
+                    'image': None,
+                    'width': 0,
+                    'height': 0,
+                    'error': f"프로세스 오류: {str(e)}"
+                }
+                output_queue.put(error_result)
+            except:
+                pass
+
+
 class RawDecoderPool:
     """RAW 디코더 프로세스 풀"""
     def __init__(self, num_processes=None):

@@ -5,15 +5,31 @@
 
 import json
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont, QPixmap, QColor
+from PySide6.QtGui import QFont, QPixmap, QColor, QPalette
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
     QPushButton, QMessageBox, QLabel, QLineEdit, QComboBox,
-    QCheckBox, QInputDialog, QSizePolicy
+    QCheckBox, QInputDialog, QSizePolicy, QScrollArea, QTextBrowser,
+    QWidget
 )
+
+# 필요한 모듈들 import
+from ..config import LanguageManager, ThemeManager, UIScaleManager
+
+
+# 플랫폼별 기능 (필요시)
+def apply_dark_title_bar(widget):
+    """다크 타이틀 바 적용 (macOS/Windows 호환)"""
+    try:
+        if hasattr(widget, 'winId'):
+            # 플랫폼별 다크 타이틀 바 구현
+            pass
+    except Exception as e:
+        logging.warning(f"다크 타이틀 바 적용 실패: {e}")
 
 
 class FileListDialog(QDialog):

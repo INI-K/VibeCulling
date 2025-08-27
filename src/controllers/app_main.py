@@ -9,9 +9,11 @@ from multiprocessing import freeze_support
 from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 from PySide6.QtGui import QPixmap, QIcon, QFont
 from PySide6.QtCore import Qt, QTimer
+import pillow_heif
 
 from ..utils import get_app_data_dir
-from .main_controller import VibeCullingApp
+from .core_controller import VibeCullingApp
+from ..config import LanguageManager, UIScaleManager
 
 
 def main():

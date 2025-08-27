@@ -17,6 +17,9 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 import platform
+from multiprocessing import cpu_count
+from concurrent.futures import ThreadPoolExecutor
+import queue
 
 # Third-party imports  
 import numpy as np
@@ -363,6 +366,7 @@ class VibeCullingApp(QMainWindow):
         self.setup_dark_theme()
         
         # 제목 표시줄 다크 테마 적용
+        from ..utils import apply_dark_title_bar
         apply_dark_title_bar(self)
         
         # 중앙 위젯 설정
@@ -998,3 +1002,43 @@ class VibeCullingApp(QMainWindow):
             self.raw_folder = raw_folder
 
         logging.info(f"백그라운드 로딩 완료 (모드: {final_mode}): {len(self.image_files)}개 이미지, {len(self.raw_files)}개 RAW 매칭")
+
+    def set_window_icon(self):
+        """크로스 플랫폼 윈도우 아이콘을 설정합니다."""
+        try:
+            from PySide6.QtGui import QIcon
+            from PySide6.QtWidgets import QApplication
+            from pathlib import Path
+
+            # 플랫폼별 아이콘 파일 결정
+            if sys.platform == "darwin":  # macOS
+                icon_filename = "app_icon.icns"
+            else:  # Windows, Linux
+                icon_filename = "app_icon.ico"
+
+            # 아이콘 파일 경로 결정
+            if getattr(sys, 'frozen', False):
+                # PyInstaller로 패키징된 경우
+                if hasattr(sys, '_MEIPASS'):
+                    # PyInstaller의 임시 폴더에서 찾기
+                    icon_path = Path(sys._MEIPASS) / icon_filename
+                else:
+                    # Nuitka나 다른 패키징 도구의 경우
+                    icon_path = Path(sys.executable).parent / icon_filename
+            else:
+                # 일반 스크립트로 실행된 경우
+                icon_path = Path(__file__).parent.parent.parent / icon_filename
+
+            if icon_path.exists():
+                icon = QIcon(str(icon_path))
+                self.setWindowIcon(icon)
+
+                # 애플리케이션 레벨에서도 아이콘 설정 (macOS Dock용)
+                QApplication.instance().setWindowIcon(icon)
+
+                logging.info(f"윈도우 아이콘 설정 완료: {icon_path}")
+            else:
+                logging.warning(f"아이콘 파일을 찾을 수 없습니다: {icon_path}")
+
+        except Exception as e:
+            logging.error(f"윈도우 아이콘 설정 실패: {e}")
