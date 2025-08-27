@@ -1,402 +1,250 @@
-#!/usr/bin/env bash
-set -e
+#!/bin/bash
 
-# 색상 출력을 위한 설정
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# VibeCulling macOS 빌드 스크립트 (PyInstaller 기반)
+# 사용법: ./build_mac_app.sh
 
-# 로그 함수들
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
+set -e  # 오류 발생 시 스크립트 중단
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+echo "🔨 VibeCulling PyInstaller 빌드 시작..."
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# 버전 정보
-VERSION_FILE="version_info.txt"
-if [[ ! -f "$VERSION_FILE" ]]; then
-    log_error "버전 파일($VERSION_FILE)을 찾을 수 없습니다. 스크립트와 같은 위치에 version_info.txt 파일을 생성하고 버전을 입력해주세요."
+# 가상환경 확인
+if [[ "$VIRTUAL_ENV" == "" ]]; then
+    echo "⚠️  가상환경이 활성화되지 않았습니다. 가상환경을 먼저 활성화하세요."
+    echo "   예: source venv/bin/activate"
     exit 1
 fi
-VERSION=$(grep "FileVersion" "$VERSION_FILE" | awk -F"'" '{print $2}') # FileVersion 라인에서 버전 정보 추출
-if [[ -z "$VERSION" ]]; then
-    log_error "$VERSION_FILE 파일에서 버전 정보를 추출할 수 없습니다. 파일 형식을 확인해주세요."
-    exit 1
+
+# 필수 도구 확인
+echo "🔍 빌드 환경 확인 중..."
+python --version
+which python
+
+# PyInstaller 설치 확인
+if ! python -c "import PyInstaller" 2>/dev/null; then
+    echo "📦 PyInstaller 설치 중..."
+    pip install pyinstaller
 fi
-APP_NAME="VibeCulling"
-BUNDLE_ID="com.newboon.vibeculling"
 
-log_info "VibeCulling v${VERSION} 빌드 시작..."
+# 의존성 설치 확인
+echo "📦 의존성 확인 중..."
+pip install -r requirements.txt --quiet
 
-# 환경 확인
-log_info "빌드 환경 확인 중..."
+# 이전 빌드 결과 정리
+echo "🧹 이전 빌드 결과 정리..."
+rm -rf build dist *.spec __pycache__
 
-# GitHub Actions 환경에서 Python 사용
-PYTHON_BIN="$(which python3 || which python)"
+# PySide6 Qt 플러그인 경로 자동 감지
+echo "🔍 PySide6 Qt 플러그인 경로 확인 중..."
+QT_PLUGINS_PATH=$(python -c "
+try:
+    from PySide6.QtCore import QLibraryInfo
+    print(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))
+except:
+    import PySide6
+    import os
+    pyside_path = os.path.dirname(PySide6.__file__)
+    plugins_path = os.path.join(pyside_path, 'Qt', 'plugins')
+    if os.path.exists(plugins_path):
+        print(plugins_path)
+    else:
+        print('')
+" 2>/dev/null)
 
-log_info "Python 경로: ${PYTHON_BIN}"
-log_info "Python 버전: $(${PYTHON_BIN} --version)"
+if [ -n "$QT_PLUGINS_PATH" ] && [ -d "$QT_PLUGINS_PATH" ]; then
+    echo "✅ Qt 플러그인 경로: $QT_PLUGINS_PATH"
+else
+    echo "⚠️  Qt 플러그인 경로를 찾을 수 없습니다."
+    QT_PLUGINS_PATH=""
+fi
 
-# 필수 파일 존재 확인
-required_files=("VibeCulling.py" "app_icon.icns" "resources" "$VERSION_FILE")
-for file in "${required_files[@]}"; do
-    if [[ ! -e "$file" ]]; then
-        log_error "필수 파일이 없습니다: $file"
-        exit 1
+# ExifTool 경로 확인 (macOS용)
+EXIFTOOL_PATH=""
+if command -v exiftool &> /dev/null; then
+    EXIFTOOL_PATH=$(which exiftool)
+    echo "✅ ExifTool 발견: $EXIFTOOL_PATH"
+else
+    echo "⚠️  ExifTool을 찾을 수 없습니다. 'brew install exiftool'로 설치하세요."
+fi
+
+# libraw 라이브러리 경로 확인 (rawpy용)
+LIBRAW_PATH=""
+for path in "/opt/homebrew/lib/libraw.dylib" "/usr/local/lib/libraw.dylib" "/opt/local/lib/libraw.dylib"; do
+    if [ -f "$path" ]; then
+        LIBRAW_PATH="$path"
+        echo "✅ libraw 발견: $LIBRAW_PATH"
+        break
     fi
 done
 
-# PySide6 Qt 플러그인 경로 조회
-log_info "PySide6 Qt 플러그인 경로 조회 중..."
-PY_SIDE_DIR=$($PYTHON_BIN - << 'EOF'
-from PySide6.QtCore import QLibraryInfo
-print(QLibraryInfo.path(QLibraryInfo.PluginsPath))
-EOF
-)
-log_info "PySide6 Qt 플러그인 경로: ${PY_SIDE_DIR}"
-
-# ExifTool, libraw 경로 확인
-EXIFTOOL_BIN="/opt/homebrew/bin/exiftool"
-LIBRAW_DYLIB="/opt/homebrew/lib/libraw.dylib"
-
-if [[ ! -f "$EXIFTOOL_BIN" ]]; then
-    log_warning "ExifTool을 찾을 수 없습니다: $EXIFTOOL_BIN"
-    log_info "다른 경로에서 찾는 중..."
-    EXIFTOOL_BIN=$(which exiftool 2>/dev/null || echo "")
-    if [[ -z "$EXIFTOOL_BIN" ]]; then
-        log_error "ExifTool을 찾을 수 없습니다. 'brew install exiftool'로 설치하세요."
-        exit 1
-    fi
+if [ -z "$LIBRAW_PATH" ]; then
+    echo "⚠️  libraw를 찾을 수 없습니다. 'brew install libraw'로 설치하는 것을 권장합니다."
 fi
 
-if [[ ! -f "$LIBRAW_DYLIB" ]]; then
-    log_warning "libraw를 찾을 수 없습니다: $LIBRAW_DYLIB"
-    # 다른 경로들 시도
-    for path in "/usr/local/lib/libraw.dylib" "/opt/local/lib/libraw.dylib"; do
-        if [[ -f "$path" ]]; then
-            LIBRAW_DYLIB="$path"
-            break
+# PyInstaller로 macOS 앱 빌드
+echo "🚀 PyInstaller 빌드 시작..."
+
+# 기본 PyInstaller 옵션들
+PYINSTALLER_OPTS=(
+    --name="VibeCulling"
+    --onedir
+    --windowed
+    --clean
+    --noconfirm
+    --icon=app_icon.icns
+    --add-data="resources:resources"
+)
+
+# ExifTool이 있으면 추가
+if [ -n "$EXIFTOOL_PATH" ]; then
+    PYINSTALLER_OPTS+=(--add-binary="$EXIFTOOL_PATH:exiftool")
+fi
+
+# exiftool 폴더가 있으면 추가
+if [ -d "exiftool" ]; then
+    PYINSTALLER_OPTS+=(--add-data="exiftool:exiftool")
+fi
+
+# libraw가 있으면 추가
+if [ -n "$LIBRAW_PATH" ]; then
+    PYINSTALLER_OPTS+=(--add-binary="$LIBRAW_PATH:.")
+fi
+
+# Qt 플러그인들 추가
+if [ -n "$QT_PLUGINS_PATH" ] && [ -d "$QT_PLUGINS_PATH" ]; then
+    for plugin_dir in platforms imageformats styles iconengines; do
+        if [ -d "$QT_PLUGINS_PATH/$plugin_dir" ]; then
+            PYINSTALLER_OPTS+=(--add-data="$QT_PLUGINS_PATH/$plugin_dir:Qt/plugins/$plugin_dir")
         fi
     done
 fi
 
-log_info "ExifTool 경로: ${EXIFTOOL_BIN}"
-log_info "LibRaw 경로: ${LIBRAW_DYLIB}"
+# Hidden imports - 모든 필요한 모듈들을 명시적으로 포함
+HIDDEN_IMPORTS=(
+    # PySide6 필수 모듈들
+    --hidden-import=PySide6.QtCore
+    --hidden-import=PySide6.QtGui  
+    --hidden-import=PySide6.QtWidgets
+    --hidden-import=PySide6.QtSvg
+    
+    # PIL/Pillow 관련
+    --hidden-import=PIL._tkinter_finder
+    --hidden-import=PIL.Image
+    --hidden-import=PIL.ImageQt
+    --hidden-import=PIL.ExifTags
+    --hidden-import=PIL.ImageOps
+    
+    # 이미지 처리 라이브러리들
+    --hidden-import=rawpy
+    --hidden-import=piexif
+    --hidden-import=pillow_heif
+    --hidden-import=pillow_heif.HeifImagePlugin
+    
+    # NumPy 관련
+    --hidden-import=numpy
+    --hidden-import=numpy.core._methods
+    --hidden-import=numpy.lib.format
+    
+    # 기타 필수 모듈들
+    --hidden-import=psutil
+    --hidden-import=json
+    --hidden-import=logging.handlers
+    --hidden-import=multiprocessing.pool
+    --hidden-import=concurrent.futures
+)
 
-# 이전 빌드 정리 (최강 정리)
-log_info "이전 빌드 파일 완전 정리 중..."
-sudo rm -rf dist build *.spec __pycache__ .pytest_cache 2>/dev/null || true
-find . -name "*.pyc" -delete 2>/dev/null || true
-find . -name "__pycache__" -type d -exec sudo rm -rf {} + 2>/dev/null || true
-find . -type l -delete 2>/dev/null || true
+# 서브모듈 수집
+COLLECT_SUBMODULES=(
+    --collect-submodules=PIL
+    --collect-submodules=pillow_heif
+    --collect-submodules=rawpy
+    --collect-submodules=PySide6
+)
 
-# PySide6 및 PyInstaller 캐시 완전 정리
-log_info "모든 캐시 완전 정리 중..."
-sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
-sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
+# 제외할 모듈들
+EXCLUDE_MODULES=(
+    --exclude-module=tkinter
+    --exclude-module=matplotlib
+    --exclude-module=test
+    --exclude-module=unittest
+    --exclude-module=distutils
+    --exclude-module=setuptools
+)
 
-# 작업 디렉토리 새로 생성
-log_info "작업 디렉토리 새로 생성 중..."
-mkdir -p dist build
-
-# spec 파일 강제 삭제 (매번 새로 생성하도록)
-rm -f VibeCulling.spec 2>/dev/null || true
-
-# 버전 파일 생성 (plist 대신 간단한 버전 파일)
-cat > version_info.py << EOF
-version_info = {
-    'version': '${VERSION}',
-    'app_name': '${APP_NAME}',
-    'bundle_id': '${BUNDLE_ID}'
-}
-EOF
-
-# PyInstaller 실행
-log_info "PyInstaller를 사용하여 VibeCulling 앱 빌드 중..."
-
-# spec 파일 생성 완전 방지 - 임시 디렉토리에서 빌드
-log_info "임시 디렉토리에서 spec 파일 없이 빌드 시작..."
-
-# 임시 빌드 디렉토리 생성
-TEMP_BUILD_DIR="/tmp/vibeculling_build_$$"
-mkdir -p "${TEMP_BUILD_DIR}"
-cp VibeCulling.py "${TEMP_BUILD_DIR}/"
-cp -r resources "${TEMP_BUILD_DIR}/" 2>/dev/null || true
-cp app_icon.icns "${TEMP_BUILD_DIR}/" 2>/dev/null || true
-cp version_info.py "${TEMP_BUILD_DIR}/" 2>/dev/null || true
-
-# 임시 디렉토리에서 빌드 실행
-cd "${TEMP_BUILD_DIR}"
-# 환경 변수로 spec 파일 생성 방지
-export PYINSTALLER_COMPILE_BOOTLOADER=0
-
+# 모든 옵션 결합하여 실행
 pyinstaller \
-  --name "${APP_NAME}" \
-  --windowed \
-  --clean \
-  --onedir \
-  --noconfirm \
-  --noupx \
-  --log-level=INFO \
-  --distpath "${OLDPWD}/dist" \
-  --workpath "${OLDPWD}/build" \
-  --specpath "${TEMP_BUILD_DIR}" \
-  --icon app_icon.icns \
-  --add-data "app_icon.icns:." \
-  --add-data "resources:resources" \
-  --add-data "version_info.py:." \
-  --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
-  --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
-  --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
-  --add-binary "${EXIFTOOL_BIN}:." \
-  --add-binary "${LIBRAW_DYLIB}:." \
-  --hidden-import=PySide6.QtCore \
-  --hidden-import=PySide6.QtGui \
-  --hidden-import=PySide6.QtWidgets \
-  --collect-submodules PIL \
-  --collect-submodules pillow_heif \
-  --hidden-import=PIL \
-  --hidden-import=PIL.Image \
-  --hidden-import=PIL.ExifTags \
-  --hidden-import=exifread \
-  --hidden-import=rawpy \
-  --exclude-module tkinter \
-  --exclude-module matplotlib \
-  --exclude-module numpy.testing \
-  --exclude-module test \
-  --exclude-module unittest \
-  VibeCulling.py
+    "${PYINSTALLER_OPTS[@]}" \
+    "${HIDDEN_IMPORTS[@]}" \
+    "${COLLECT_SUBMODULES[@]}" \
+    "${EXCLUDE_MODULES[@]}" \
+    main.py
 
-# 원래 디렉토리로 돌아가기
-cd "${OLDPWD}"
-
-# 임시 디렉토리 정리
-rm -rf "${TEMP_BUILD_DIR}" 2>/dev/null || true
-
-# 혹시 생성된 spec 파일 삭제
-rm -f VibeCulling.spec 2>/dev/null || true
-
-if [[ $? -ne 0 ]]; then
-    log_error "PyInstaller 빌드 실패 - 재시도 중..."
+# 빌드 성공 확인
+if [ -d "dist/VibeCulling.app" ]; then
+    echo "✅ 빌드 완료! 결과물: dist/VibeCulling.app"
     
-    # 심볼릭 링크 충돌 해결을 위한 추가 정리
-    log_info "심볼릭 링크 충돌 해결을 위한 강력한 정리 중..."
-    sudo rm -rf dist build *.spec __pycache__ .pytest_cache 2>/dev/null || true
-    sudo rm -rf ~/.cache/pip ~/.cache/pyinstaller 2>/dev/null || true
-    sudo rm -rf /tmp/pip-* /tmp/_MEI* /tmp/pyinstaller* 2>/dev/null || true
+    # 앱 크기 확인
+    APP_SIZE=$(du -sh dist/VibeCulling.app | cut -f1)
+    echo "📊 앱 크기: $APP_SIZE"
     
-    # 임시 빌드 디렉토리 정리
-    sudo rm -rf /tmp/vibeculling_* 2>/dev/null || true
-    
-    # PySide6 관련 심볼릭 링크 특별 정리
-    sudo find . -path "*/PySide6/Qt/lib/*.framework/Resources" -type l -delete 2>/dev/null || true
-    sudo find . -path "*/PySide6/Qt/lib/*.framework/Versions/Current" -type l -delete 2>/dev/null || true
-    
-    find . -type l -delete 2>/dev/null || true
-    find . -name "*.pyc" -delete 2>/dev/null || true
-    
-    # PyInstaller 작업 디렉토리 강제 정리
-    sudo rm -rf /tmp/pyinstaller_* 2>/dev/null || true
-    
-    # 작업 디렉토리 새로 생성
-    mkdir -p dist build
-    
-    # 재시도 (임시 디렉토리에서 spec 파일 생성 방지)
-     log_info "PyInstaller 재시도 중 (임시 디렉토리 사용)..."
-     
-     # 재시도용 임시 빌드 디렉토리 생성
-     RETRY_TEMP_BUILD_DIR="/tmp/vibeculling_retry_build_$$"
-     mkdir -p "${RETRY_TEMP_BUILD_DIR}"
-     cp VibeCulling.py "${RETRY_TEMP_BUILD_DIR}/"
-     cp -r resources "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
-     cp app_icon.icns "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
-     cp version_info.py "${RETRY_TEMP_BUILD_DIR}/" 2>/dev/null || true
-     
-     # 임시 디렉토리에서 재시도 빌드 실행
-      cd "${RETRY_TEMP_BUILD_DIR}"
-      
-      # 환경 변수로 spec 파일 생성 방지
-      export PYINSTALLER_COMPILE_BOOTLOADER=0
-      
-      pyinstaller \
-        --name "${APP_NAME}" \
-        --windowed \
-        --clean \
-        --onedir \
-        --noconfirm \
-        --noupx \
-        --log-level=INFO \
-        --distpath "${OLDPWD}/dist" \
-        --workpath "${OLDPWD}/build" \
-        --specpath "${RETRY_TEMP_BUILD_DIR}" \
-        --icon app_icon.icns \
-       --add-data "app_icon.icns:." \
-       --add-data "resources:resources" \
-       --add-data "version_info.py:." \
-       --add-data "${PY_SIDE_DIR}/platforms:Qt/plugins/platforms" \
-    --add-data "${PY_SIDE_DIR}/styles:Qt/plugins/styles" \
-    --add-data "${PY_SIDE_DIR}/imageformats:Qt/plugins/imageformats" \
-    --add-binary "${EXIFTOOL_BIN}:." \
-    --add-binary "${LIBRAW_DYLIB}:." \
-    --hidden-import=PySide6.QtCore \
-    --hidden-import=PySide6.QtGui \
-    --hidden-import=PySide6.QtWidgets \
-    --collect-submodules PIL \
-    --collect-submodules pillow_heif \
-       --hidden-import=PIL \
-       --hidden-import=PIL.Image \
-       --hidden-import=PIL.ExifTags \
-       --hidden-import=exifread \
-       --hidden-import=rawpy \
-       --exclude-module tkinter \
-       --exclude-module matplotlib \
-       --exclude-module numpy.testing \
-       --exclude-module test \
-       --exclude-module unittest \
-       VibeCulling.py
-     
-     # 원래 디렉토리로 돌아가기
-     cd "${OLDPWD}"
-     
-     # 재시도용 임시 디렉토리 정리
-     rm -rf "${RETRY_TEMP_BUILD_DIR}" 2>/dev/null || true
-     
-     # 혹시 생성된 spec 파일 삭제
-     rm -f VibeCulling.spec 2>/dev/null || true
-    if [[ $? -ne 0 ]]; then
-        log_error "PyInstaller 재시도도 실패"
-        exit 1
+    # 포함된 라이브러리 확인
+    echo "🔍 포함된 주요 라이브러리 확인..."
+    if [ -d "dist/VibeCulling.app/Contents/MacOS" ]; then
+        echo "   - Python 런타임: ✅"
+        if find "dist/VibeCulling.app" -name "*PySide6*" | head -1 | grep -q .; then
+            echo "   - PySide6: ✅"
+        else
+            echo "   - PySide6: ❌"
+        fi
+        if find "dist/VibeCulling.app" -name "*PIL*" -o -name "*Pillow*" | head -1 | grep -q .; then
+            echo "   - PIL/Pillow: ✅"
+        else
+            echo "   - PIL/Pillow: ❌"  
+        fi
+        if find "dist/VibeCulling.app" -name "*rawpy*" | head -1 | grep -q .; then
+            echo "   - rawpy: ✅"
+        else
+            echo "   - rawpy: ❌"
+        fi
+        if find "dist/VibeCulling.app" -name "*numpy*" | head -1 | grep -q .; then
+            echo "   - NumPy: ✅"
+        else
+            echo "   - NumPy: ❌"
+        fi
     fi
-fi
-
-log_success "PyInstaller 빌드 완료"
-
-# 앱 번들 경로
-APP_BUNDLE="dist/${APP_NAME}.app"
-
-# 빌드 결과 확인
-if [[ ! -d "$APP_BUNDLE" ]]; then
-    log_error "앱 번들을 찾을 수 없습니다: $APP_BUNDLE"
+    
+    # macOS 코드 사이닝 (개발용)
+    echo "🔐 코드 사이닝 중..."
+    codesign --force --deep --sign - dist/VibeCulling.app || echo "⚠️  코드 사이닝 실패 (선택사항)"
+    
+    # 격리 속성 제거
+    echo "🔓 격리 속성 제거 중..."
+    xattr -rd com.apple.quarantine dist/VibeCulling.app 2>/dev/null || echo "ℹ️  격리 속성이 없습니다"
+    
+    # 실행 권한 확인
+    chmod +x dist/VibeCulling.app/Contents/MacOS/VibeCulling
+    
+    echo ""
+    echo "🎉 VibeCulling macOS 앱 빌드가 성공적으로 완료되었습니다!"
+    echo ""
+    echo "📍 실행 방법:"
+    echo "   open dist/VibeCulling.app"
+    echo ""
+    echo "📦 배포 방법:"
+    echo "   1. dist/VibeCulling.app을 압축하여 배포"
+    echo "   2. 사용자는 Applications 폴더로 드래그하여 설치"
+    echo ""
+    echo "🧪 테스트 권장 사항:"
+    echo "   - 다른 macOS 시스템에서 실행 테스트"
+    echo "   - RAW 파일 로딩 테스트"
+    echo "   - EXIF 정보 읽기 테스트"
+    
+else
+    echo "❌ 빌드 실패! dist/VibeCulling.app을 찾을 수 없습니다."
+    echo "build.log를 확인하거나 --log-level DEBUG 옵션을 추가하여 디버깅하세요."
     exit 1
 fi
 
-# 코드 서명 (개발용)
-log_info "코드 서명 중..."
-codesign --force --deep --sign - "$APP_BUNDLE" 2>/dev/null || {
-    log_warning "코드 서명 실패 (계속 진행)"
-}
-
-# 격리 속성 제거
-log_info "격리 속성 제거 중..."
-xattr -rd com.apple.quarantine "$APP_BUNDLE" 2>/dev/null || {
-    log_info "격리 속성이 없습니다 (정상)"
-}
-
-# 실행 권한 확인
-log_info "실행 권한 확인 중..."
-chmod +x "$APP_BUNDLE/Contents/MacOS/${APP_NAME}"
-
-# 앱 정보 출력
-APP_SIZE=$(du -sh "$APP_BUNDLE" | cut -f1)
-log_info "앱 크기: $APP_SIZE"
-
-# 배포용 파일 생성
-log_info "배포용 파일 생성 중..."
-
-# 배포 디렉토리 생성
-DIST_DIR="VibeCulling_v${VERSION}_macOS"
-mkdir -p "$DIST_DIR"
-
-# 앱 복사
-cp -R "$APP_BUNDLE" "$DIST_DIR/"
-
-# 설치 안내 파일 생성
-cat > "$DIST_DIR/설치_안내.txt" << EOF
-VibeCulling v${VERSION} 설치 안내
-================================
-
-1. VibeCulling.app을 Applications 폴더로 드래그하여 설치하세요.
-
-2. 처음 실행 시 보안 경고가 나타나면:
-   - 시스템 설정 > 개인정보 보호 및 보안 > 보안
-   - "확인되지 않은 개발자의 앱 허용" 섹션에서 VibeCulling 허용
-
-3. 그래도 실행되지 않으면 터미널에서 다음 명령어를 실행하세요:
-   xattr -rd com.apple.quarantine /Applications/VibeCulling.app
-
-문의사항이 있으시면 개발자에게 연락해주세요.
-EOF
-
-# ZIP 파일 생성
-log_info "ZIP 파일 생성 중..."
-zip -r "${DIST_DIR}.zip" "$DIST_DIR" > /dev/null
-
-# DMG 생성 (create-dmg가 설치된 경우)
-if command -v create-dmg &> /dev/null; then
-    log_info "DMG 파일 생성 중..."
-    create-dmg \
-        --volname "${APP_NAME} v${VERSION}" \
-        --window-pos 200 120 \
-        --window-size 800 400 \
-        --icon-size 100 \
-        --icon "${APP_NAME}.app" 200 190 \
-        --hide-extension "${APP_NAME}.app" \
-        --app-drop-link 600 185 \
-        "${DIST_DIR}.dmg" \
-        "$DIST_DIR" 2>/dev/null || {
-        log_warning "DMG 생성 실패 (선택사항)"
-    }
-else
-    log_info "create-dmg가 설치되지 않음 (DMG 생성 건너뜀)"
-    log_info "설치하려면: brew install create-dmg"
-fi
-
-# 빌드 완료 정보
-log_success "빌드 완료!"
 echo ""
-log_info "생성된 파일들:"
-echo "  - $APP_BUNDLE"
-echo "  - ${DIST_DIR}/"
-echo "  - ${DIST_DIR}.zip"
-if [[ -f "${DIST_DIR}.dmg" ]]; then
-    echo "  - ${DIST_DIR}.dmg"
-fi
-
-echo ""
-log_info "배포 방법:"
-echo "  1. ${DIST_DIR}.zip을 사용자에게 전달"
-echo "  2. 사용자는 압축 해제 후 VibeCulling.app을 Applications 폴더로 이동"
-echo "  3. 설치_안내.txt 파일을 함께 제공"
-
-echo ""
-log_info "테스트를 위해 앱을 실행해보세요:"
-echo "  open \"$APP_BUNDLE\""
-
-# 정리
-log_info "빌드 아티팩트 정리 중..."
-rm -f version_info.py
-rm -f "${APP_NAME}.spec"
-if [[ -f "${DIST_DIR}.dmg" ]]; then
-    log_info "DMG 파일 외의 다른 빌드 파일들을 삭제합니다."
-    rm -rf build
-    rm -rf dist
-    rm -rf "$DIST_DIR"
-    rm -f "${DIST_DIR}.zip"
-else
-    log_warning "DMG 파일이 생성되지 않았으므로 중간 파일들을 유지합니다."
-fi
-
-log_success "모든 작업 완료!"
+echo "🧹 빌드 아티팩트 정리..."
+echo "   - build/ 폴더와 .spec 파일은 필요시 수동으로 삭제하세요"
+echo "   - dist/VibeCulling.app이 최종 결과물입니다"
