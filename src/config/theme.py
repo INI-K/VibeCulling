@@ -9,99 +9,11 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
-
-
-class UIScaleManager:
-    NORMAL_SETTINGS = {
-        "font_size": 10,
-        "zoom_grid_font_size": 10,
-        "filename_font_size": 10,
-        "control_panel_margins": 8,
-        "radiobutton_padding": 4,
-        "radiobutton_size": 12,
-        "radiobutton_border": 1,
-        "radiobutton_border_radius": 6,
-        "checkbox_padding": 4,
-    }
-    COMPACT_SETTINGS = {
-        "font_size": 9,
-        "zoom_grid_font_size": 9,
-        "filename_font_size": 9,
-        "control_panel_margins": 6,
-        "radiobutton_padding": 3,
-        "radiobutton_size": 10,
-        "radiobutton_border": 1,
-        "radiobutton_border_radius": 5,
-        "checkbox_padding": 3,
-    }
-
-    _current_settings = NORMAL_SETTINGS.copy()
-
-    @classmethod
-    def initialize(cls):
-        """애플리케이션 시작 시 UI 스케일을 최종 결정합니다."""
-        try:
-            screen = QGuiApplication.primaryScreen()
-            if not screen:
-                cls._current_settings = cls.NORMAL_SETTINGS.copy()
-                return
-
-            geo = screen.geometry()
-            width, height = geo.width(), geo.height()
-
-            if height < 1201:
-                base_settings = cls.COMPACT_SETTINGS.copy()
-            else:
-                base_settings = cls.NORMAL_SETTINGS.copy()
-            
-            # 폰트 크기 조정 로직 (해상도 및 DPI)
-            if width >= 3840 and base_settings["font_size"] < 11:
-                base_settings["font_size"] += 1; base_settings["zoom_grid_font_size"] += 1; base_settings["filename_font_size"] += 1
-
-            dpi_scale = cls._get_system_dpi_scale()
-            if dpi_scale >= 2.0 and base_settings["font_size"] > 9:
-                logging.info(f"시스템 DPI 배율 {dpi_scale*100:.0f}% 감지. 폰트 크기 -1 적용.")
-                base_settings["font_size"] -= 1; base_settings["zoom_grid_font_size"] -= 1; base_settings["filename_font_size"] -= 1
-            elif dpi_scale == 1.0 and base_settings["font_size"] < 11:
-                logging.info(f"시스템 DPI 배율 100% 감지. 폰트 크기 +1 적용.")
-                base_settings["font_size"] += 2; base_settings["zoom_grid_font_size"] += 2; base_settings["filename_font_size"] += 2
-
-            # 해상도 기반 너비 조정 (폰트 크기 조정 후)
-            cls._update_settings_for_horizontal_resolution(base_settings, width, height)
-            
-            cls._current_settings = base_settings
-            logging.info(f"UI 스케일 초기화 완료: 해상도={width}x{height}, 최종 폰트 크기={base_settings['font_size']}")
-
-        except Exception as e:
-            logging.error(f"UIScaleManager 초기화 중 오류: {e}. 기본 UI 스케일을 사용합니다.")
-            cls._current_settings = cls.NORMAL_SETTINGS.copy()
-
-    @classmethod
-    def is_compact_mode(cls):
-        return cls._current_settings["font_size"] < 10
-
-    @classmethod
-    def get(cls, key, default=None):
-        return cls._current_settings.get(key, default)
-
-    @classmethod
-    def get_margins(cls):
-        return cls._current_settings.get("control_panel_margins")
-
-    @classmethod
-    def _get_system_dpi_scale(cls):
-        # DPI 스케일을 얻는 로직을 구현해야 합니다.
-        # 현재는 임시로 1.0을 반환합니다.
-        return 1.0
-
-    @classmethod
-    def _update_settings_for_horizontal_resolution(cls, base_settings, width, height):
-        # 가로 해상도에 따른 설정을 업데이트합니다.
-        # 현재는 임시로 아무런 처리도 하지 않습니다.
-        pass
+from .ui_scale import UIScaleManager
 
 
 class ThemeManager:
+    """현재 테마를 관리하고 테마 변경 시 관련된 모든 ui 요소에 변경 사항을 반영하는 클래스."""
 
     _UI_COLORS_DEFAULT = {
         "accent": "#848484",        # 강조색
@@ -300,4 +212,93 @@ class ThemeManager:
                 color: {cls.get_color('text')};
                 padding: {UIScaleManager.get("checkbox_padding")}px;
             }}
+            QCheckBox::indicator {{
+                width: {UIScaleManager.get("checkbox_size", 12)}px;
+                height: {UIScaleManager.get("checkbox_size", 12)}px;
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {cls.get_color('accent')};
+                border: 1px solid {cls.get_color('accent')};
+                border-radius: 2px;
+            }}
+            QCheckBox::indicator:unchecked {{
+                background-color: {cls.get_color('bg_primary')};
+                border: 1px solid {cls.get_color('border')};
+                border-radius: 2px;
+            }}
+            QCheckBox::indicator:unchecked:hover {{
+                border: 1px solid {cls.get_color('text_disabled')};
+            }}
+            QCheckBox::indicator:disabled {{
+                background-color: {cls.get_color('bg_disabled')};
+                border: 1px solid {cls.get_color('text_disabled')};
+            }}
         """
+
+    @classmethod
+    def generate_main_button_style(cls):
+        """현재 테마에 맞는 기본 버튼 스타일시트를 생성합니다."""
+        return f"""
+            QPushButton {{
+                background-color: {cls.get_color('bg_secondary')};
+                color: {cls.get_color('text')};
+                border: none;
+                padding: 6px;
+                border-radius: 1px;
+                min-height: 20px;
+            }}
+            QPushButton:hover {{
+                background-color: {cls.get_color('bg_hover')};
+            }}
+            QPushButton:pressed {{
+                background-color: {cls.get_color('bg_pressed')};
+            }}
+            QPushButton:disabled {{
+                background-color: {cls.get_color('bg_disabled')};
+                color: {cls.get_color('text_disabled')};
+            }}
+        """
+
+    @classmethod
+    def get_color(cls, color_key):
+        """현재 테마에서 색상 코드 가져오기"""
+        return cls.THEMES[cls._current_theme].get(color_key, "#FFFFFF")
+
+    @classmethod
+    def set_theme(cls, theme_name):
+        """테마 변경하고 모든 콜백 함수 호출"""
+        if theme_name in cls.THEMES:
+            cls._current_theme = theme_name
+            # 모든 콜백 함수 호출
+            for callback in cls._theme_change_callbacks:
+                try:
+                    callback()
+                except Exception as e:
+                    logging.warning(f"테마 변경 콜백 실행 중 오류: {e}")
+            return True
+        return False
+
+    @classmethod
+    def register_theme_change_callback(cls, callback):
+        """테마 변경 시 호출될 콜백 함수 등록"""
+        if callable(callback) and callback not in cls._theme_change_callbacks:
+            cls._theme_change_callbacks.append(callback)
+
+    @classmethod
+    def get_current_theme_name(cls):
+        """현재 테마 이름 반환"""
+        return cls._current_theme
+
+    @classmethod
+    def get_available_themes(cls):
+        """사용 가능한 모든 테마 이름 목록 반환"""
+        return list(cls.THEMES.keys())
+
+    @classmethod
+    def initialize(cls, theme_name="default"):
+        """테마 매니저 초기화"""
+        if theme_name in cls.THEMES:
+            cls._current_theme = theme_name
+        else:
+            cls._current_theme = "default"
+        logging.info(f"테마 매니저 초기화 완료: {cls._current_theme}")

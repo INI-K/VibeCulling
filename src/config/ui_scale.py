@@ -5,17 +5,20 @@ UI 스케일 관리 모듈
 
 import os
 import json
+import logging
 from pathlib import Path
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QFont, QFontMetrics
+from PySide6.QtGui import QFont, QFontMetrics, QGuiApplication
 from PySide6.QtWidgets import QApplication
-
+import sys
 
 class UIScaleManager:
     """해상도와 화면 비율에 따라 UI 크기를 동적으로 관리하는 클래스"""
 
-    # min/max 너비 개념을 다시 사용합니다.
     NORMAL_SETTINGS = {
+        "font_size": 10,
+        "zoom_grid_font_size": 11,
+        "filename_font_size": 11,
         "control_panel_margins": (8, 9, 8, 9),     # 컨트롤 패널 내부 여백 (좌, 상, 우, 하)
         "control_layout_spacing": 8,               # 컨트롤 레이아웃 위젯 간 기본 간격
         "button_padding": 7,                       # 버튼 내부 패딩
@@ -27,9 +30,6 @@ class UIScaleManager:
         "settings_button_size": 35,                # 설정(톱니바퀴) 버튼 크기
         "filename_label_padding": 40,              # 파일명 레이블 상하 패딩
         "info_label_padding": 5,                   # 파일 정보 레이블 좌측 패딩
-        "font_size": 10,                           # 기본 폰트 크기
-        "zoom_grid_font_size": 11,                 # Zoom, Grid 등 섹션 제목 폰트 크기
-        "filename_font_size": 11,                  # 파일명 폰트 크기
         "folder_container_spacing": 6,             # 분류폴더 번호버튼 - 레이블 - X버튼 간격
         "folder_label_padding": 20,                # 폴더 경로 레이블 높이 계산용 패딩
         "sort_folder_label_padding": 25,           # 분류폴더 레이블 패딩
@@ -70,7 +70,11 @@ class UIScaleManager:
         "compare_filename_padding": 5,             # 비교 모드 파일명 패딩
         "shortcuts_popup_height": 1030,            # 단축키 팝업 높이
     }
+
     COMPACT_SETTINGS = {
+        "font_size": 9,
+        "zoom_grid_font_size": 10,
+        "filename_font_size": 10,
         "control_panel_margins": (6, 6, 6, 6),     # 컨트롤 패널 내부 여백 (좌, 상, 우, 하)
         "control_layout_spacing": 6,               # 컨트롤 레이아웃 위젯 간 기본 간격
         "button_padding": 6,                       # 버튼 내부 패딩
@@ -82,9 +86,6 @@ class UIScaleManager:
         "settings_button_size": 25,                # 설정(톱니바퀴) 버튼 크기
         "filename_label_padding": 25,              # 파일명 레이블 상하 패딩
         "info_label_padding": 5,                   # 파일 정보 레이블 좌측 패딩
-        "font_size": 9,                            # 기본 폰트 크기
-        "zoom_grid_font_size": 10,                 # Zoom, Grid 등 섹션 제목 폰트 크기
-        "filename_font_size": 10,                  # 파일명 폰트 크기
         "folder_container_spacing": 4,             # 분류폴더 번호버튼 - 레이블 - X버튼 간격
         "folder_label_padding": 10,                # 폴더 경로 레이블 높이 계산용 패딩
         "sort_folder_label_padding": 20,           # 분류폴더 레이블 패딩
@@ -126,71 +127,158 @@ class UIScaleManager:
         "shortcuts_popup_height": 920,            # 단축키 팝업 높이
     }
 
-    _current_settings = NORMAL_SETTINGS
+    _current_settings = NORMAL_SETTINGS.copy()
 
     @classmethod
-    def _calculate_thumbnail_metrics(cls, image_size):
-        """주어진 썸네일 이미지 크기를 기반으로 관련 UI 수치들을 계산합니다."""
-        metrics = {}
-        image_size = int(image_size)
-        metrics["thumbnail_image_size"] = image_size
-        
-        panel_min_width = int(image_size * 1.31)
-        metrics["thumbnail_panel_min_width"] = panel_min_width
-        metrics["thumbnail_panel_max_width"] = int(panel_min_width * 1.5)
-        
-        text_height = max(20, int(24 * (image_size / 150.0)))
-        metrics["thumbnail_text_height"] = text_height
-        metrics["thumbnail_item_height"] = panel_min_width + text_height + 10
+    def initialize(cls):
+        """애플리케이션 시작 시 UI 스케일을 최종 결정합니다."""
+        try:
+            screen = QGuiApplication.primaryScreen()
+            if not screen:
+                cls._current_settings = cls.NORMAL_SETTINGS.copy()
+                logging.warning("스크린 정보를 가져올 수 없습니다. 기본 UI 스케일을 사용합니다.")
+                return
 
-        scale_factor = image_size / 150.0
-        metrics["thumbnail_padding"] = max(5, int(6 * scale_factor))
-        metrics["thumbnail_item_spacing"] = max(1, int(2 * scale_factor))
-        metrics["thumbnail_border_width"] = max(1, int(2 * scale_factor))
-        
-        return metrics
+            geo = screen.geometry()
+            width, height = geo.width(), geo.height()
+
+            # 기본 설정 선택
+            if height < 1201:
+                base_settings = cls.COMPACT_SETTINGS.copy()
+                logging.info(f"낮은 해상도 감지 ({width}x{height}). 컴팩트 UI 스케일을 사용합니다.")
+            else:
+                base_settings = cls.NORMAL_SETTINGS.copy()
+                logging.info(f"일반 해상도 감지 ({width}x{height}). 기본 UI 스케일을 사용합니다.")
+
+            # 폰트 크기 조정 로직 (해상도 및 DPI)
+            if width >= 3840 and base_settings["font_size"] < 11:
+                base_settings["font_size"] += 1
+                base_settings["zoom_grid_font_size"] += 1
+                base_settings["filename_font_size"] += 1
+                logging.info("4K 해상도 감지. 폰트 크기 +1 적용.")
+
+            dpi_scale = cls._get_system_dpi_scale()
+            if dpi_scale >= 2.0 and base_settings["font_size"] > 9:
+                logging.info(f"시스템 DPI 배율 {dpi_scale * 100:.0f}% 감지. 폰트 크기 -1 적용.")
+                base_settings["font_size"] -= 1
+                base_settings["zoom_grid_font_size"] -= 1
+                base_settings["filename_font_size"] -= 1
+            elif dpi_scale == 1.0 and base_settings["font_size"] < 11:
+                logging.info(f"시스템 DPI 배율 100% 감지. 폰트 크기 +1 적용.")
+                base_settings["font_size"] += 1
+                base_settings["zoom_grid_font_size"] += 1
+                base_settings["filename_font_size"] += 1
+
+            # 해상도 기반 너비 조정 (폰트 크기 조정 후)
+            cls._update_settings_for_horizontal_resolution(base_settings, width, height)
+
+            cls._current_settings = base_settings
+            logging.info(f"UI 스케일 초기화 완료: 해상도={width}x{height}, "
+                         f"최종 폰트 크기={base_settings['font_size']}")
+
+        except Exception as e:
+            logging.error(f"UIScaleManager 초기화 중 오류: {e}. 기본 UI 스케일을 사용합니다.")
+            cls._current_settings = cls.NORMAL_SETTINGS.copy()
+
+    @classmethod
+    def is_compact_mode(cls):
+        """현재 컴팩트 모드 여부를 반환합니다."""
+        return cls._current_settings["font_size"] < 10
+
+    @classmethod
+    def get(cls, key, default=None):
+        """설정값을 가져옵니다."""
+        return cls._current_settings.get(key, default)
+
+    @classmethod
+    def get_margins(cls):
+        """컨트롤 패널 마진을 반환합니다."""
+        return cls._current_settings.get("control_panel_margins")
+
+    @classmethod
+    def get_font_size(cls):
+        """기본 폰트 크기를 반환합니다."""
+        return cls._current_settings.get("font_size")
+
+    @classmethod
+    def get_zoom_grid_font_size(cls):
+        """줌 그리드 폰트 크기를 반환합니다."""
+        return cls._current_settings.get("zoom_grid_font_size")
+
+    @classmethod
+    def get_filename_font_size(cls):
+        """파일명 폰트 크기를 반환합니다."""
+        return cls._current_settings.get("filename_font_size")
 
     @classmethod
     def _get_system_dpi_scale(cls):
-        """Qt의 스케일링 비활성화와 무관하게 실제 시스템의 DPI 배율을 가져옵니다."""
-        if sys.platform == "win32":
-            try:
-                # Windows API를 직접 호출하여 DPI를 가져옵니다.
-                import ctypes
-                user32 = ctypes.windll.user32
-                # 화면 전체에 대한 Device Context를 가져옵니다.
-                hdc = user32.GetDC(0)
-                # LOGPIXELSX(88)는 수평 DPI, LOGPIXELSY(90)는 수직 DPI입니다.
-                # 보통 두 값은 같으므로 하나만 사용합니다.
-                current_dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
-                user32.ReleaseDC(0, hdc)
-                # Windows의 표준 DPI는 96입니다.
-                scale = current_dpi / 96.0
-                logging.info(f"Windows API로 감지된 DPI 배율: {scale:.2f} ({current_dpi} DPI)")
-                return scale
-            except Exception as e:
-                logging.error(f"Windows DPI 배율 감지 실패: {e}. 기본값 1.0 사용.")
-                return 1.0
-        else:
-            # Windows가 아닌 OS에서는 devicePixelRatio가 정상적으로 동작할 가능성이 높습니다.
+        """시스템 DPI 스케일을 가져옵니다."""
+        try:
             screen = QGuiApplication.primaryScreen()
             if screen:
-                scale = screen.devicePixelRatio()
-                logging.info(f"Qt API로 감지된 DPI 배율: {scale:.2f}")
-                return scale
+                # 물리적 DPI와 논리적 DPI 비교하여 스케일 계산
+                logical_dpi = screen.logicalDotsPerInch()
+                physical_dpi = screen.physicalDotsPerInch()
+                if physical_dpi > 0:
+                    scale = logical_dpi / 96.0  # 96 DPI를 기준으로 스케일 계산
+                    return max(1.0, scale)
+            return 1.0
+        except Exception as e:
+            logging.warning(f"DPI 스케일 계산 실패: {e}")
             return 1.0
 
     @classmethod
-    def _update_settings_for_horizontal_resolution(cls, settings, width, height):
-        aspect_ratio = width / height if height > 0 else 16/9
-        if abs(aspect_ratio - 1.6) < 0.05:
-            if width == 2560:
-                settings["thumbnail_panel_min_width"], settings["control_panel_min_width"] = 197, 316
-            elif width == 1920:
-                settings["thumbnail_panel_min_width"], settings["control_panel_min_width"] = 145, 220
-            return
-        if width >= 3440:
-            thumbnail_metrics = cls._calculate_thumbnail_metrics(width * 0.058)
-            settings.update(thumbnail_metrics)
-            settings["control_panel_min_width"] = 380
+    def _update_settings_for_horizontal_resolution(cls, base_settings, width, height):
+        """가로 해상도에 따른 설정을 업데이트합니다."""
+        try:
+            # 매우 넓은 화면 (울트라와이드 등)에 대한 추가 조정
+            if width >= 2560 and height < width * 0.6:  # 21:9 이상 비율
+                # 울트라와이드 모니터 감지
+                base_settings["control_panel_margins"] = (base_settings["control_panel_margins"][0] + 2,
+                                                          base_settings["control_panel_margins"][1] + 2,
+                                                          base_settings["control_panel_margins"][2] + 2,
+                                                          base_settings["control_panel_margins"][3] + 2)
+                logging.info("울트라와이드 화면 감지. 마진 증가.")
 
+            # 매우 작은 화면에 대한 조정
+            elif width < 1366 or height < 768:
+                # 작은 화면에서는 모든 요소를 더 작게
+                for key in base_settings:
+                    if key.endswith("_size") and isinstance(base_settings[key], int):
+                        base_settings[key] = max(8, base_settings[key] - 1)
+                    elif key.endswith("_padding") and isinstance(base_settings[key], int):
+                        base_settings[key] = max(2, base_settings[key] - 1)
+                logging.info("작은 화면 감지. UI 요소 크기 감소.")
+
+        except Exception as e:
+            logging.warning(f"해상도 기반 설정 조정 실패: {e}")
+
+    @classmethod
+    def get_current_settings(cls):
+        """현재 모든 설정을 반환합니다."""
+        return cls._current_settings.copy()
+
+    @classmethod
+    def update_setting(cls, key, value):
+        """특정 설정값을 업데이트합니다."""
+        if key in cls._current_settings:
+            cls._current_settings[key] = value
+            logging.info(f"UI 스케일 설정 업데이트: {key}={value}")
+            return True
+        else:
+            logging.warning(f"알 수 없는 UI 스케일 설정: {key}")
+            return False
+
+    @classmethod
+    def reset_to_default(cls):
+        """설정을 기본값으로 재설정합니다."""
+        cls._current_settings = cls.NORMAL_SETTINGS.copy()
+        logging.info("UI 스케일이 기본값으로 재설정되었습니다.")
+
+    @classmethod
+    def log_current_settings(cls):
+        """현재 설정을 로그로 출력합니다."""
+        logging.info("=== UI 스케일 설정 ===")
+        for key, value in cls._current_settings.items():
+            logging.info(f"{key}: {value}")
+        logging.info("====================")

@@ -10,177 +10,9 @@ from PySide6.QtCore import QObject, Signal
 from pathlib import Path
 
 
-class ThemeManager:
-    """현재 테마를 관리하고 테마 변경 시 관련된 모든 ui 요소에 변경 사항을 반영하는 클래스."""
-
-    THEMES = {
-        "light": {
-            "bg_primary": "#F0F0F0",
-            "bg_secondary": "#FFFFFF",
-            "text": "#000000",
-            "text_disabled": "#AAAAAA",
-            "accent": "#03A9F4",
-            "accent_hover": "#0277BD",
-            "accent_pressed": "#01579B",
-            "border": "#DDDDDD",
-        },
-        "dark": {
-            "bg_primary": "#2F2F2F",
-            "bg_secondary": "#3F3F3F",
-            "text": "#FFFFFF",
-            "text_disabled": "#AAAAAA",
-            "accent": "#03A9F4",
-            "accent_hover": "#0277BD",
-            "accent_pressed": "#01579B",
-            "border": "#555555",
-        }
-    }
-
-    _current_theme = "light"
-    _theme_change_callbacks = []
-
-    @classmethod
-    def generate_checkbox_style(cls):
-        """현재 테마에 맞는 체크박스 스타일시트를 생성합니다."""
-        return f"""
-            QCheckBox:disabled {{
-                color: {cls.get_color('text_disabled')};
-            }}
-            QCheckBox::indicator {{
-                width: {UIScaleManager.get("checkbox_size")}px;
-                height: {UIScaleManager.get("checkbox_size")}px;
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {cls.get_color('accent')};
-                border: {UIScaleManager.get("checkbox_border")}px solid {cls.get_color('accent')};
-                border-radius: {UIScaleManager.get("checkbox_border_radius")}px;
-            }}
-            QCheckBox::indicator:unchecked {{
-                background-color: {cls.get_color('bg_primary')};
-                border: {UIScaleManager.get("checkbox_border")}px solid {cls.get_color('border')};
-                border-radius: {UIScaleManager.get("checkbox_border_radius")}px;
-            }}
-            QCheckBox::indicator:unchecked:hover {{
-                border: {UIScaleManager.get("checkbox_border")}px solid {cls.get_color('text_disabled')};
-            }}
-            QCheckBox::indicator:disabled {{
-                background-color: {cls.get_color('bg_disabled')};
-                border: {UIScaleManager.get("checkbox_border")}px solid {cls.get_color('text_disabled')};
-            }}
-        """
-
-    @classmethod
-    def generate_main_button_style(cls):
-        """현재 테마에 맞는 기본 버튼 스타일시트를 생성합니다."""
-        return f"""
-            QPushButton {{
-                background-color: {cls.get_color('bg_secondary')};
-                color: {cls.get_color('text')};
-                border: none;
-                padding: {UIScaleManager.get("button_padding")}px;
-                border-radius: 1px;
-                min-height: {UIScaleManager.get("button_min_height")}px;
-            }}
-            QPushButton:hover {{
-                background-color: {cls.get_color('accent_hover')};
-            }}
-            QPushButton:pressed {{
-                background-color: {cls.get_color('accent_pressed')};
-            }}
-            QPushButton:disabled {{
-                background-color: {cls.get_color('bg_disabled')};
-                color: {cls.get_color('text_disabled')};
-                opacity: 0.7;
-            }}
-        """
-
-    @classmethod
-    def generate_dynamic_height_button_style(cls):
-        """수직 패딩이 없고 수평 패딩만 있는 버튼 스타일을 생성합니다."""
-        horizontal_padding = UIScaleManager.get("button_padding")
-        return f"""
-            QPushButton {{
-                background-color: {cls.get_color('bg_secondary')};
-                color: {cls.get_color('text')};
-                border: none;
-                /* 수직 패딩은 0, 수평 패딩은 유지 */
-                padding: 0px {horizontal_padding}px;
-                border-radius: 1px;
-            }}
-            QPushButton:hover {{
-                background-color: {cls.get_color('accent_hover')};
-            }}
-            QPushButton:pressed {{
-                background-color: {cls.get_color('accent_pressed')};
-            }}
-            QPushButton:disabled {{
-                background-color: {cls.get_color('bg_disabled')};
-                color: {cls.get_color('text_disabled')};
-                opacity: 0.7;
-            }}
-        """
-
-    @classmethod
-    def generate_action_button_style(cls):
-        """현재 테마에 맞는 액션 버튼(X, ✓) 스타일시트를 생성합니다."""
-        return f"""
-            QPushButton {{
-                background-color: {cls.get_color('bg_secondary')};
-                color: {cls.get_color('text')};
-                border: none;
-                padding: 4px;
-                border-radius: 1px;
-                min-height: {UIScaleManager.get("button_min_height")}px;
-            }}
-            QPushButton:hover {{
-                background-color: {cls.get_color('accent_hover')};
-                color: white;
-            }}
-            QPushButton:pressed {{
-                background-color: {cls.get_color('accent_pressed')};
-                color: white;
-            }}
-            QPushButton:disabled {{
-                background-color: {cls.get_color('bg_disabled')};
-                color: {cls.get_color('text_disabled')};
-            }}
-        """
-
-    @classmethod
-    def get_color(cls, color_key):
-        """현재 테마에서 색상 코드 가져오기"""
-        return cls.THEMES[cls._current_theme][color_key]
-    
-    @classmethod
-    def set_theme(cls, theme_name):
-        """테마 변경하고 모든 콜백 함수 호출"""
-        if theme_name in cls.THEMES:
-            cls._current_theme = theme_name
-            # 모든 콜백 함수 호출
-            for callback in cls._theme_change_callbacks:
-                callback()
-            return True
-        return False
-    
-    @classmethod
-    def register_theme_change_callback(cls, callback):
-        """테마 변경 시 호출될 콜백 함수 등록"""
-        if callable(callback) and callback not in cls._theme_change_callbacks:
-            cls._theme_change_callbacks.append(callback)
-    
-    @classmethod
-    def get_current_theme_name(cls):
-        """현재 테마 이름 반환"""
-        return cls._current_theme
-    
-    @classmethod
-    def get_available_themes(cls):
-        """사용 가능한 모든 테마 이름 목록 반환"""
-        return list(cls.THEMES.keys())
-
 class HardwareProfileManager:
     """시스템 하드웨어 및 예상 사용 시나리오를 기반으로 성능 프로필을 결정하고 관련 파라미터를 제공하는 클래스."""
-    
+
     _profile = "balanced"
     _system_memory_gb = 8
     _cpu_cores = 4
@@ -188,8 +20,178 @@ class HardwareProfileManager:
     PROFILES = {
         "conservative": {
             "name": "저사양 (8GB RAM)",
-            "max_imaging_threads": 2, "max_raw_processes": 1, "cache_size_images": 30,
-            "preload_range_adjacent": (5, 2), "preload_range_priority": 2, "preload_grid_bg_limit_factor": 0.3,
+            "max_imaging_threads": 2,
+            "max_raw_processes": 1,
+            "cache_size_images": 30,
+            "preload_range_adjacent": (5, 2),
+            "preload_range_priority": 2,
+            "preload_grid_bg_limit_factor": 0.3,
             "memory_thresholds": {"danger": 88, "warning": 82, "caution": 75},
             "cache_clear_ratios": {"danger": 0.5, "warning": 0.3, "caution": 0.15},
             "idle_preload_enabled": False,
+            "idle_interval_ms": 3000,
+        },
+        "balanced": {
+            "name": "일반 (16GB RAM)",
+            "max_imaging_threads": 4,
+            "max_raw_processes": 2,
+            "cache_size_images": 60,
+            "preload_range_adjacent": (8, 4),
+            "preload_range_priority": 4,
+            "preload_grid_bg_limit_factor": 0.5,
+            "memory_thresholds": {"danger": 90, "warning": 85, "caution": 80},
+            "cache_clear_ratios": {"danger": 0.6, "warning": 0.4, "caution": 0.2},
+            "idle_preload_enabled": True,
+            "idle_interval_ms": 2000,
+        },
+        "performance": {
+            "name": "고성능 (32GB+ RAM)",
+            "max_imaging_threads": 8,
+            "max_raw_processes": 4,
+            "cache_size_images": 120,
+            "preload_range_adjacent": (12, 6),
+            "preload_range_priority": 8,
+            "preload_grid_bg_limit_factor": 0.7,
+            "memory_thresholds": {"danger": 92, "warning": 88, "caution": 85},
+            "cache_clear_ratios": {"danger": 0.7, "warning": 0.5, "caution": 0.3},
+            "idle_preload_enabled": True,
+            "idle_interval_ms": 1500,
+        }
+    }
+
+    @classmethod
+    def initialize(cls):
+        """시스템 정보를 수집하고 적절한 프로필을 자동으로 설정합니다."""
+        try:
+            # 시스템 메모리 정보
+            memory = psutil.virtual_memory()
+            cls._system_memory_gb = round(memory.total / (1024 ** 3))
+
+            # CPU 코어 수
+            cls._cpu_cores = psutil.cpu_count(logical=False) or 4
+
+            # 메모리 기준으로 프로필 자동 선택
+            if cls._system_memory_gb <= 8:
+                cls._profile = "conservative"
+            elif cls._system_memory_gb <= 24:
+                cls._profile = "balanced"
+            else:
+                cls._profile = "performance"
+
+            logging.info(f"하드웨어 프로필 초기화 완료: {cls._profile} "
+                         f"(메모리: {cls._system_memory_gb}GB, CPU: {cls._cpu_cores}코어)")
+
+        except Exception as e:
+            logging.warning(f"하드웨어 프로필 초기화 실패: {e}, 기본값 사용")
+            cls._profile = "balanced"
+            cls._system_memory_gb = 16
+            cls._cpu_cores = 4
+
+    @classmethod
+    def set_profile(cls, profile_name):
+        """프로필을 수동으로 설정합니다."""
+        if profile_name in cls.PROFILES:
+            cls._profile = profile_name
+            logging.info(f"하드웨어 프로필 변경: {profile_name}")
+            return True
+        else:
+            logging.warning(f"알 수 없는 프로필: {profile_name}")
+            return False
+
+    @classmethod
+    def get_current_profile(cls):
+        """현재 프로필 이름을 반환합니다."""
+        return cls._profile
+
+    @classmethod
+    def get_profile_info(cls, profile_name=None):
+        """프로필 정보를 반환합니다."""
+        target_profile = profile_name or cls._profile
+        return cls.PROFILES.get(target_profile, cls.PROFILES["balanced"])
+
+    @classmethod
+    def get(cls, key, profile_name=None):
+        """특정 설정값을 가져옵니다."""
+        profile_info = cls.get_profile_info(profile_name)
+        return profile_info.get(key)
+
+    @classmethod
+    def get_max_imaging_threads(cls):
+        """최대 이미징 스레드 수를 반환합니다."""
+        return cls.get("max_imaging_threads")
+
+    @classmethod
+    def get_max_raw_processes(cls):
+        """최대 RAW 프로세스 수를 반환합니다."""
+        return cls.get("max_raw_processes")
+
+    @classmethod
+    def get_cache_size_images(cls):
+        """이미지 캐시 크기를 반환합니다."""
+        return cls.get("cache_size_images")
+
+    @classmethod
+    def get_preload_range_adjacent(cls):
+        """인접 이미지 사전로드 범위를 반환합니다."""
+        return cls.get("preload_range_adjacent")
+
+    @classmethod
+    def get_preload_range_priority(cls):
+        """우선순위 사전로드 범위를 반환합니다."""
+        return cls.get("preload_range_priority")
+
+    @classmethod
+    def get_preload_grid_bg_limit_factor(cls):
+        """그리드 배경 로드 제한 계수를 반환합니다."""
+        return cls.get("preload_grid_bg_limit_factor")
+
+    @classmethod
+    def get_memory_thresholds(cls):
+        """메모리 임계값들을 반환합니다."""
+        return cls.get("memory_thresholds")
+
+    @classmethod
+    def get_cache_clear_ratios(cls):
+        """캐시 클리어 비율들을 반환합니다."""
+        return cls.get("cache_clear_ratios")
+
+    @classmethod
+    def is_idle_preload_enabled(cls):
+        """유휴 시간 사전로드 활성화 여부를 반환합니다."""
+        return cls.get("idle_preload_enabled")
+
+    @classmethod
+    def get_idle_interval_ms(cls):
+        """유휴 시간 간격(밀리초)을 반환합니다."""
+        return cls.get("idle_interval_ms")
+
+    @classmethod
+    def get_system_info(cls):
+        """시스템 정보를 반환합니다."""
+        return {
+            "memory_gb": cls._system_memory_gb,
+            "cpu_cores": cls._cpu_cores,
+            "current_profile": cls._profile,
+            "profile_name": cls.get("name")
+        }
+
+    @classmethod
+    def get_all_profiles(cls):
+        """모든 프로필 정보를 반환합니다."""
+        return cls.PROFILES
+
+    @classmethod
+    def log_current_settings(cls):
+        """현재 설정을 로그로 출력합니다."""
+        profile_info = cls.get_profile_info()
+        system_info = cls.get_system_info()
+
+        logging.info("=== 하드웨어 프로필 설정 ===")
+        logging.info(f"시스템: {system_info['memory_gb']}GB RAM, {system_info['cpu_cores']}코어")
+        logging.info(f"프로필: {system_info['current_profile']} ({system_info['profile_name']})")
+        logging.info(f"이미징 스레드: {profile_info['max_imaging_threads']}")
+        logging.info(f"RAW 프로세스: {profile_info['max_raw_processes']}")
+        logging.info(f"이미지 캐시: {profile_info['cache_size_images']}")
+        logging.info(f"사전로드 범위: {profile_info['preload_range_adjacent']}")
+        logging.info(f"유휴 사전로드: {profile_info['idle_preload_enabled']}")
+        logging.info("==========================")
