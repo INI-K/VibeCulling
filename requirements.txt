@@ -1,4 +1,5 @@
 numpy
+exif
 piexif
 psutil
 Pillow
